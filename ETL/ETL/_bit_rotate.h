@@ -38,7 +38,7 @@
 
 /* === C L A S S E S & S T R U C T S ======================================= */
 
-_ETL_BEGIN_NAMESPACE
+namespace etl {
 
 template <typename T> T
 rot_left(const T &val, const int &bits=1)
@@ -52,7 +52,7 @@ rot_right(const T &val, const int &bits=1)
 	return (T)( ((unsigned)val>>bits)+((unsigned)val<<(sizeof(T)*8-bits)) );
 }
 
-_ETL_END_NAMESPACE
+};
 
 /* === E X T E R N S ======================================================= */
 

@@ -37,7 +37,7 @@
 
 /* === C L A S S E S & S T R U C T S ======================================= */
 
-_ETL_BEGIN_NAMESPACE
+namespace etl {
 
 class status
 {
@@ -59,7 +59,7 @@ public:
 		{ return amount_complete((int)(percent*10000),10000); }
 };
 
-_ETL_END_NAMESPACE
+};
 
 /* === E X T E R N S ======================================================= */
 
