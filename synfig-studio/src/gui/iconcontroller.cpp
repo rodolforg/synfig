@@ -262,6 +262,9 @@ IconController::init_icons(const synfig::String& path_to_icons)
 	INIT_STOCK_ICON(layer_transform_rotate, "layer_transform_rotate_icon." IMAGE_EXT, _("Rotate Layer"));
 	INIT_STOCK_ICON(layer_transform_translate, "layer_transform_translate_icon." IMAGE_EXT, _("Translate Layer"));
 	INIT_STOCK_ICON(layer_transform_scale, "layer_transform_scale_icon." IMAGE_EXT, _("Scale Layer"));
+	// Layer status
+	INIT_STOCK_ICON(layer_selection_unlocked, "layer_unlocked_icon." IMAGE_EXT, _("Unlocked Layer"));
+	INIT_STOCK_ICON(layer_selection_locked, "layer_locked_icon." IMAGE_EXT, _("Locked Layer"));
 
 	// Ghost Layers
 	// TODO: icon for ghost group

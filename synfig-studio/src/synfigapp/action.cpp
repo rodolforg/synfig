@@ -58,6 +58,7 @@
 #include "actions/layersetdesc.h"
 #include "actions/layersetexcludefromrendering.h"
 #include "actions/layerzdepthrangeset.h"
+#include "actions/layersetlocked.h"
 #include "actions/layerembed.h"
 #include "actions/layerextract.h"
 #include "actions/layerresetpose.h"

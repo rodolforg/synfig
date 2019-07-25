@@ -261,6 +261,11 @@ LayerTree::create_layer_tree()
 		Gtk::TreeView::Column* column = get_layer_tree_view().get_column(index-1);
 		get_layer_tree_view().set_expander_column(*column);
 	}
+	{	// --- L O C K E D ----------------------------------------------------
+		int index;
+		// Set up the icon cell-renderer
+		index=get_layer_tree_view().append_column("", layer_model.selection_locked);
+	}
 	{	// --- N A M E --------------------------------------------------------
 		Gtk::TreeView::Column* column = Gtk::manage( new Gtk::TreeView::Column(_("Name")) );
 

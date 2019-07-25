@@ -26,6 +26,7 @@ target_sources(synfigapp
         "${CMAKE_CURRENT_LIST_DIR}/layersetdesc.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/layersetexcludefromrendering.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/layerzdepthrangeset.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/layersetlocked.cpp"
 
         "${CMAKE_CURRENT_LIST_DIR}/valuedescconnect.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/valuedescconvert.cpp"

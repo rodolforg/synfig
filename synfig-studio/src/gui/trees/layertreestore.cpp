@@ -87,6 +87,7 @@ LayerTreeStore::LayerTreeStore(etl::loose_handle<synfigapp::CanvasInterface> can
 	canvas_interface()->signal_layer_status_changed().connect(sigc::mem_fun(*this,&studio::LayerTreeStore::on_layer_status_changed));
 	canvas_interface()->signal_layer_exclude_from_rendering_changed().connect(sigc::mem_fun(*this,&studio::LayerTreeStore::on_layer_exclude_from_rendering_changed));
 	canvas_interface()->signal_layer_z_range_changed().connect(sigc::mem_fun(*this,&studio::LayerTreeStore::on_layer_z_range_changed));
+	canvas_interface()->signal_layer_locked_changed().connect(sigc::mem_fun(*this,&studio::LayerTreeStore::on_layer_locked_changed));
 	canvas_interface()->signal_layer_lowered().connect(sigc::mem_fun(*this,&studio::LayerTreeStore::on_layer_lowered));
 	canvas_interface()->signal_layer_raised().connect(sigc::mem_fun(*this,&studio::LayerTreeStore::on_layer_raised));
 	canvas_interface()->signal_layer_removed().connect(sigc::mem_fun(*this,&studio::LayerTreeStore::on_layer_removed));
@@ -265,6 +266,18 @@ LayerTreeStore::get_value_vfunc(const Gtk::TreeModel::iterator& iter, int column
 			if (column == model.icon.index())
 				set_gvalue_tpl< Glib::RefPtr<Gdk::Pixbuf> >(value, get_tree_pixbuf_layer(layer->get_name()));
 			else
+			if (column == model.selection_locked.index())
+			{
+				Gtk::StockID stockid;
+#warning FIXME
+				if (layer->active())
+					stockid = Gtk::StockID("synfig-layer_selection_unlocked");
+				else
+					stockid = Gtk::StockID("synfig-layer_selection_locked");
+				Glib::RefPtr<Gdk::Pixbuf> pixbuf = Gtk::Button().render_icon_pixbuf(stockid, Gtk::ICON_SIZE_SMALL_TOOLBAR);
+				set_gvalue_tpl< Glib::RefPtr<Gdk::Pixbuf> >(value, pixbuf);
+			}
+			else
 				Gtk::TreeStore::get_value_vfunc(iter,column,value);
 
 			return;
@@ -399,6 +412,28 @@ LayerTreeStore::set_value_impl(const Gtk::TreeModel::iterator& iter, int column,
 				action->set_param("canvas_interface",canvas_interface());
 				action->set_param("layer",layer);
 				action->set_param("new_state",bool(x.get()));
+
+				canvas_interface()->get_instance()->perform_action(action);
+				return;
+			}
+			else
+			if (column == model.selection_locked.index())
+			{
+				if (!layer)
+					return;
+
+				Glib::Value<bool> x;
+				g_value_init(x.gobj(), model.selection_locked.type());
+				g_value_copy(value.gobj(), x.gobj());
+
+				synfigapp::Action::Handle action(synfigapp::Action::create("LayerSetLocked"));
+				if (!action)
+					return;
+
+				action->set_param("canvas", canvas_interface()->get_canvas());
+				action->set_param("canvas_interface", canvas_interface());
+				action->set_param("layer", layer);
+				action->set_param("new_status", bool(x.get()));
 
 				canvas_interface()->get_instance()->perform_action(action);
 				return;
@@ -1037,6 +1072,19 @@ LayerTreeStore::on_layer_z_range_changed(synfig::Layer::Handle handle,bool /*x*/
 	else
 	{
 		synfig::warning("Couldn't find layer to be change the z_depth range in layer list. Rebuilding index...");
+		rebuild();
+	}
+}
+
+void
+LayerTreeStore::on_layer_locked_changed(synfig::Layer::Handle handle,bool /*x*/)
+{
+	Gtk::TreeModel::Children::iterator iter;
+	if(find_layer_row(handle,iter))
+		(*iter)[model.layer]=handle;
+	else
+	{
+		synfig::warning("Couldn't find layer to be excluded/included from/to rendering in layer list. Rebuilding index...");
 		rebuild();
 	}
 }

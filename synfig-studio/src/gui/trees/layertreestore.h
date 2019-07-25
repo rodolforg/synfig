@@ -74,6 +74,7 @@ public:
 		Gtk::TreeModelColumn<Pango::Weight>				weight;
 		Gtk::TreeModelColumn<Pango::Underline>			underline;
 		Gtk::TreeModelColumn<bool>						strikethrough;
+		Gtk::TreeModelColumn<bool>						selection_locked;
 
 		Gtk::TreeModelColumn<RecordType>				record_type;
 		Gtk::TreeModelColumn<synfig::Layer::Handle>		layer;
@@ -183,6 +184,8 @@ private:
 	void on_layer_exclude_from_rendering_changed(synfig::Layer::Handle handle,bool);
 
 	void on_layer_z_range_changed(synfig::Layer::Handle handle,bool);
+
+	void on_layer_locked_changed(synfig::Layer::Handle handle,bool);
 
 	void on_layer_lowered(synfig::Layer::Handle handle);
 
