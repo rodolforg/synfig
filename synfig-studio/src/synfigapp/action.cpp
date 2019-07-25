@@ -216,6 +216,7 @@ Action::Main::Main()
 	ADD_ACTION(Action::LayerAddFrame);
 	ADD_ACTION(Action::LayerCopy);
 	ADD_ACTION(Action::LayerResetPose);
+	ADD_ACTION(Action::LayerSetLocked);
 
 	ADD_ACTION(Action::ValueNodeConstSet);
 	ADD_ACTION(Action::ValueNodeConstSetStatic);

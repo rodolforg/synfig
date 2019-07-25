@@ -101,6 +101,7 @@ public:
 			add(weight);
 			add(underline);
 			add(strikethrough);
+			add(selection_locked);
 			add(record_type);
 			add(layer);
 			add(layer_impossible);

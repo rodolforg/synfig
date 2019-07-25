@@ -141,14 +141,7 @@ Action::LayerSetLocked::perform()
 	if(*iter!=layer)
 		throw Error(_("This layer doesn't exist anymore."));
 
-	// If the subcanvas isn't the same as the canvas,
-	// then it had better be an inline canvas. If not,
-	// bail
-	//if(get_canvas()!=subcanvas && !subcanvas->is_inline())
-	//if(get_canvas()->get_root()!=subcanvas->get_root())
-	//	throw Error(_("This layer doesn't belong to this composition"));
-
-	old_status=layer->active();
+	old_status = get_canvas_interface()->is_layer_locked(layer);
 
 	// If we are changing the status to what it already is,
 	// the go ahead and return
@@ -161,9 +154,9 @@ Action::LayerSetLocked::perform()
 		set_dirty();
 
 	if(new_status)
-		layer->enable();
+		get_canvas_interface()->lock_layer(layer, true);
 	else
-		layer->disable();
+		get_canvas_interface()->lock_layer(layer, false);
 
 	if(get_canvas_interface())
 	{
@@ -187,9 +180,9 @@ Action::LayerSetLocked::undo()
 
 	// restore the old status
 	if(old_status)
-		layer->enable();
+		get_canvas_interface()->lock_layer(layer, true);
 	else
-		layer->disable();
+		get_canvas_interface()->lock_layer(layer, false);
 
 	if(get_canvas_interface())
 	{

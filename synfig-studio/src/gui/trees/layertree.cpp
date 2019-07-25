@@ -262,9 +262,13 @@ LayerTree::create_layer_tree()
 		get_layer_tree_view().set_expander_column(*column);
 	}
 	{	// --- L O C K E D ----------------------------------------------------
-		int index;
-		// Set up the icon cell-renderer
-		index=get_layer_tree_view().append_column("", layer_model.selection_locked);
+		Gtk::TreeView::Column* column = Gtk::manage( new Gtk::TreeView::Column(_(" ")) );
+
+		Gtk::CellRendererToggle* cellrenderer = Gtk::manage( new Gtk::CellRendererToggle() );
+		cellrenderer->signal_toggled().connect(sigc::mem_fun(*this, &studio::LayerTree::on_layer_selection_locked_toggle));
+		column->pack_start(*cellrenderer,false);
+		column->add_attribute(cellrenderer->property_active(), layer_model.selection_locked);
+		get_layer_tree_view().append_column(*column);
 	}
 	{	// --- N A M E --------------------------------------------------------
 		Gtk::TreeView::Column* column = Gtk::manage( new Gtk::TreeView::Column(_("Name")) );
@@ -910,6 +914,15 @@ LayerTree::on_layer_toggle(const Glib::ustring& path_string)
 	const Gtk::TreeRow row = *(get_layer_tree_view().get_model()->get_iter(path));
 	bool active=static_cast<bool>(row[layer_model.active]);
 	row[layer_model.active]=!active;
+}
+
+void LayerTree::on_layer_selection_locked_toggle(const Glib::ustring& path_string)
+{
+	const Gtk::TreePath path(path_string);
+	const Gtk::TreeRow &row = *(get_layer_tree_view().get_model()->get_iter(path));
+
+	bool selection_locked = static_cast<bool>(row[layer_model.selection_locked]);
+	row[layer_model.selection_locked] = !selection_locked;
 }
 
 #ifdef TIMETRACK_IN_PARAMS_PANEL

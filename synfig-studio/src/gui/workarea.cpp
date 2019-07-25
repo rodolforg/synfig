@@ -1572,7 +1572,7 @@ WorkArea::on_drawing_area_event(GdkEvent *event)
 				if(allow_layer_clicks)
 				{
 					Layer::Handle layer(get_canvas()->find_layer(get_canvas_view()->get_context_params(),drag_point));
-					//if(layer)
+					if(!layer || !canvas_interface->is_layer_locked(layer))
 					{
 						if(canvas_view->get_smach().process_event(EventLayerClick(layer,BUTTON_LEFT,mouse_pos,modifier))==Smach::RESULT_OK)
 							signal_layer_selected_(layer);

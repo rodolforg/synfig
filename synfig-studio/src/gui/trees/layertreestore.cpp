@@ -268,14 +268,7 @@ LayerTreeStore::get_value_vfunc(const Gtk::TreeModel::iterator& iter, int column
 			else
 			if (column == model.selection_locked.index())
 			{
-				Gtk::StockID stockid;
-#warning FIXME
-				if (layer->active())
-					stockid = Gtk::StockID("synfig-layer_selection_unlocked");
-				else
-					stockid = Gtk::StockID("synfig-layer_selection_locked");
-				Glib::RefPtr<Gdk::Pixbuf> pixbuf = Gtk::Button().render_icon_pixbuf(stockid, Gtk::ICON_SIZE_SMALL_TOOLBAR);
-				set_gvalue_tpl< Glib::RefPtr<Gdk::Pixbuf> >(value, pixbuf);
+				set_gvalue_tpl<bool>(value, canvas_interface()->is_layer_locked(layer));
 			}
 			else
 				Gtk::TreeStore::get_value_vfunc(iter,column,value);

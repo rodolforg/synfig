@@ -433,6 +433,25 @@ CanvasInterface::layer_move_action(const synfig::Layer::Handle &layer, int depth
 	return true;
 }
 
+void CanvasInterface::lock_layer(Layer::Handle layer, bool lock)
+{
+	auto iter = std::find(locked_layers.begin(), locked_layers.end(), layer);
+	if (iter == locked_layers.end()) {
+		if (lock) {
+			locked_layers.push_back(layer);
+			signal_layer_locked_changed()(layer, lock);
+		}
+	} else if (!lock) {
+		locked_layers.erase(iter);
+		signal_layer_locked_changed()(layer, lock);
+	}
+}
+
+bool CanvasInterface::is_layer_locked(Layer::Handle layer) const
+{
+	return std::find(locked_layers.begin(), locked_layers.end(), layer) != locked_layers.end();
+}
+
 Layer::Handle
 CanvasInterface::add_layer_to(const synfig::String &id, const synfig::Canvas::Handle &canvas, int depth)
 {

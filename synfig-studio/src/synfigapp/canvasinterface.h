@@ -73,6 +73,8 @@ private:
 	synfig::Time cur_time_;
 	Mode mode_;
 
+	std::list<synfig::Layer::Handle> locked_layers;
+
 	sigc::signal<void,synfig::Layer::Handle> signal_layer_raised_;
 	sigc::signal<void,synfig::Layer::Handle> signal_layer_lowered_;
 	sigc::signal<void,synfig::Layer::Handle,int> signal_layer_inserted_;
@@ -289,6 +291,10 @@ public:
 	bool layer_add_action(const synfig::Layer::Handle &layer);
 	//! Stage 4/4 of add_layer_to. Perform action to move the layer (set depth)
 	bool layer_move_action(const synfig::Layer::Handle &layer, int depth);
+
+
+	void lock_layer(synfig::Layer::Handle layer, bool lock);
+	bool is_layer_locked(synfig::Layer::Handle layer) const;
 
 
 	bool convert(ValueDesc value_desc, synfig::String type);
