@@ -67,10 +67,6 @@ using namespace studio;
 #	define IMAGE_EXT	"png"
 #endif
 
-//#define stringify(x) #x
-#define stringify(x) (x)
-//#define stringify(x) (std::to_string(x).c_str())
-
 /* === G L O B A L S ======================================================= */
 
 /* === P R O C E D U R E S ================================================= */
@@ -195,7 +191,7 @@ About::About()
 
 	extra_info += strprintf(_("Built with:\n"));
 	extra_info += strprintf(_("ETL %s\n"), ETL_VERSION);
-	extra_info += strprintf(_("Synfig API %s\n"), stringify(SYNFIG_VERSION));
+	extra_info += strprintf(_("Synfig API %s\n"), SYNFIG_VERSION);
 	extra_info += strprintf(_("Synfig library %d\n"), SYNFIG_LIBRARY_VERSION);
 	extra_info += strprintf(_("GTK+ %d.%d.%d\n"), GTK_MAJOR_VERSION, GTK_MINOR_VERSION, GTK_MICRO_VERSION);
 	#ifdef __GNUC__
