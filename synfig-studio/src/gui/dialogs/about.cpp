@@ -49,6 +49,8 @@
 
 #include "gui/resourcehelper.h"
 
+#include <ctime>
+
 #endif
 
 /* === U S I N G =========================================================== */
@@ -70,6 +72,49 @@ using namespace studio;
 /* === G L O B A L S ======================================================= */
 
 /* === P R O C E D U R E S ================================================= */
+
+static int get_month_index(const std::string & monthName)
+{
+    static const std::map<std::string, int> months
+    {
+        { "Jan", 0 },
+        { "Feb", 1 },
+        { "Mar", 2 },
+        { "Apr", 3 },
+        { "May", 4 },
+        { "Jun", 5 },
+        { "Jul", 6 },
+        { "Aug", 7 },
+        { "Sep", 8 },
+        { "Oct", 9 },
+        { "Nov", 10 },
+        { "Dec", 11 }
+    };
+
+    const auto iter(months.find(monthName));
+
+    return (iter != months.cend()) ? iter->second : -1;
+}
+
+static std::vector<std::string> string_split(const std::string &str, char delimiter) {
+	std::vector<std::string> list;
+    std::istringstream f(str);
+    std::string s;
+    while (getline(f, s, delimiter)) {
+        list.push_back(s);
+    }
+	return list;
+}
+
+static std::string get_localized_date() {
+	std::string standard_date = __DATE__;
+	char mbstr[100];
+	if (std::strftime(mbstr, sizeof(mbstr), "%x", std::localtime(&t))) {
+		std::cout << mbstr << '\n';
+	}
+	std::string month_name;
+	month_name << standard_date;
+}
 
 /* === M E T H O D S ======================================================= */
 
@@ -185,7 +230,7 @@ About::About()
 
 	extra_info += "\n";
 
-	extra_info += strprintf(_("Built on %s" /* at %s */ "\n"), __DATE__ /* , __TIME__ */ );
+	extra_info += strprintf(_("Built on %s\n"), get_localized_date().c_str());
 
 	extra_info += "\n";
 
