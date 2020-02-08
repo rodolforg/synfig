@@ -164,7 +164,7 @@ About::About()
 	artists.push_back("Yu Chen (jcome)");
 	set_artists(artists);
 
-	// TRANSLATORS: change this to your name, separate multiple names with \n
+	// TRANSLATORS: change this to your name
 	set_translator_credits(_("translator-credits"));
 
 	std::string imagepath = ResourceHelper::get_image_path("synfig_icon." IMAGE_EXT);
