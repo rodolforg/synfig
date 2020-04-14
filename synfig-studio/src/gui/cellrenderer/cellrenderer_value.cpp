@@ -161,11 +161,29 @@ public:
 		Gtk::CellEditable::on_remove_widget();
 	}
 
-	void start_editing_vfunc(GdkEvent */*event*/)
+	void start_editing_vfunc(GdkEvent *event)
 	{
 		SYNFIG_EXCEPTION_GUARD_BEGIN()
 		valuewidget->signal_activate().connect(sigc::mem_fun(*this,
 			&studio::ValueBase_Entry::editing_done));
+
+		// popup combobox menu if its is a enum editor
+		if (event && event->type == GDK_BUTTON_PRESS && valuewidget) {
+			Type &type(valuewidget->get_value().get_type());
+			bool popup_combobox = false;
+			if (type == type_integer) {
+				string param_hint = valuewidget->get_param_desc().get_hint();
+				string child_param_hint = valuewidget->get_child_param_desc().get_hint();
+				if ( param_hint == "enum" || child_param_hint == "enum" )
+					popup_combobox = true;
+			} else if (type == type_canvas)
+				popup_combobox = true;
+			else if (type == type_bone_valuenode)
+				popup_combobox = true;
+			if (popup_combobox)
+				valuewidget->popup_combobox();
+		}
+
 		show();
 		//valuewidget->grab_focus();
 		//get_window()->set_focus(*valuewidget);

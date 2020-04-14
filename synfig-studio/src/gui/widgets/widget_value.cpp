@@ -210,6 +210,22 @@ Widget_ValueBase::set_sensitive(bool x)
 	distance_widget->set_sensitive(x);
 }
 
+void Widget_ValueBase::popup_combobox()
+{
+	Type &type(get_value().get_type());
+	if (type == type_integer) {
+		string param_hint = get_param_desc().get_hint();
+		string child_param_hint = get_child_param_desc().get_hint();
+		if ( param_hint == "enum" || child_param_hint == "enum" ) {
+			enum_widget->popup();
+		}
+	} else if (type == type_canvas) {
+		canvas_widget->popup();
+	} else if (type == type_bone_valuenode) {
+		bone_widget->popup();
+	}
+}
+
 void
 Widget_ValueBase::set_value(const synfig::ValueBase &data)
 {
@@ -459,10 +475,16 @@ Widget_ValueBase::on_grab_focus()
 		angle_widget->grab_focus();
 	else
 	if (type == type_bone_valuenode)
+	{
 		bone_widget->grab_focus();
+		popup_combobox();
+	}
 	else
 	if (type == type_canvas)
+	{
 		canvas_widget->grab_focus();
+		popup_combobox();
+	}
 	else
 	if (type == type_integer)
 	{
@@ -473,7 +495,7 @@ Widget_ValueBase::on_grab_focus()
 		else
 		{
 			enum_widget->grab_focus();
-			popup_enum_combobox();
+			popup_combobox();
 		}
 	}
 	else
