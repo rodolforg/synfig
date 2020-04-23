@@ -49,6 +49,13 @@ using namespace synfig;
 
 /* === M A C R O S ========================================================= */
 
+// hack hack hack
+#ifdef LIBXMLPP_VERSION_2_6
+#define add_child_element(x) add_child(x)
+#define add_child_text set_child_text
+#define get_first_child_text get_child_text
+#endif
+
 /* === G L O B A L S ======================================================= */
 
 /* === P R O C E D U R E S ================================================= */
@@ -500,22 +507,22 @@ FileSystemTemporary::save_temporary() const
 	xmlpp::Document document;
 	xmlpp::Element *root = document.create_root_node("temporary-file-system");
 
-	xmlpp::Element *meta_node = root->add_child("meta");
+	xmlpp::Element *meta_node = root->add_child_element("meta");
 	for(map<String, String>::const_iterator i = meta.begin(); i != meta.end(); i++)
 	{
-		xmlpp::Element *entry = meta_node->add_child("entry");
-		entry->add_child("key")->set_child_text(i->first);
-		entry->add_child("value")->set_child_text(i->second);
+		xmlpp::Element *entry = meta_node->add_child_element("entry");
+		entry->add_child_element("key")->add_child_text(i->first);
+		entry->add_child_element("value")->add_child_text(i->second);
 	}
 
-	xmlpp::Element *files_node = root->add_child("files");
+	xmlpp::Element *files_node = root->add_child_element("files");
 	for(FileMap::const_iterator i = files.begin(); i != files.end(); i++)
 	{
-		xmlpp::Element *entry = files_node->add_child("entry");
-		entry->add_child("name")->set_child_text(i->second.name);
-		entry->add_child("tmp-basename")->set_child_text(basename(i->second.tmp_filename));
-		entry->add_child("is-directory")->set_child_text(i->second.is_directory ? "true" : "false");
-		entry->add_child("is-removed")->set_child_text(i->second.is_removed ? "true" : "false");
+		xmlpp::Element *entry = files_node->add_child_element("entry");
+		entry->add_child_element("name")->add_child_text(i->second.name);
+		entry->add_child_element("tmp-basename")->add_child_text(basename(i->second.tmp_filename));
+		entry->add_child_element("is-directory")->add_child_text(i->second.is_directory ? "true" : "false");
+		entry->add_child_element("is-removed")->add_child_text(i->second.is_removed ? "true" : "false");
 	}
 
 	create_temporary_directory();

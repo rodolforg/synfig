@@ -318,13 +318,14 @@ PKG_CHECK_MODULES(GIOMM, [giomm-2.4 >= 2.18.2],[
 	AC_MSG_ERROR([ ** You need to install giomm-2.4 version 2.18.2 or higher.])
 ])
 
-PKG_CHECK_MODULES(LIBXMLPP, libxml++-2.6,[
-	CONFIG_DEPS="$CONFIG_DEPS libxml++-2.6"
+PKG_CHECK_MODULES(LIBXMLPP, libxml++-3.0,[
+	CONFIG_DEPS="$CONFIG_DEPS libxml++-3.0"
 ],[
-	PKG_CHECK_MODULES(LIBXMLPP, libxml++-1.0,[
-		CONFIG_DEPS="$CONFIG_DEPS libxml++-1.0"
+	PKG_CHECK_MODULES(LIBXMLPP, libxml++-2.6,[
+		CONFIG_DEPS="$CONFIG_DEPS libxml++-2.6"
+		LIBXMLPP_CFLAGS="$LIBXMLPP_CFLAGS -DLIBXMLPP_VERSION_2_6"
 	],[
-		AC_MSG_ERROR([ ** You need to install libxml++, either version 2.6 or 1.0.])
+		AC_MSG_ERROR([ ** You need to install libxml++, either version 3.0 or 2.6.])
 	])
 ])
 

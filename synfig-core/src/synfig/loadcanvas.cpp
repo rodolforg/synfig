@@ -110,6 +110,13 @@ inline bool is_false(string s) { return s=="0" || s=="false" || s=="FALSE" || s=
 
 std::set<FileSystem::Identifier> CanvasParser::loading_;
 
+// hack hack hack
+#ifdef LIBXMLPP_VERSION_2_6
+#define add_child_element add_child
+#define set_first_child_text set_child_text
+#define get_first_child_text get_child_text
+#endif
+
 /* === P R O C E D U R E S ================================================= */
 
 static std::map<String, Canvas::LooseHandle>* open_canvas_map_(0);
@@ -256,8 +263,8 @@ CanvasParser::parse_keyframe(xmlpp::Element *element,Canvas::Handle canvas)
 
 
 	if(!element->get_children().empty())
-		if(!element->get_child_text()->get_content().empty())
-			ret.set_description(element->get_child_text()->get_content());
+		if(!element->get_first_child_text()->get_content().empty())
+			ret.set_description(element->get_first_child_text()->get_content());
 	
 	bool active=true;
 	if(element->get_attribute("active")) 
@@ -384,7 +391,7 @@ CanvasParser::parse_vector(xmlpp::Element *element)
 				error(element, "Undefined value in <x>");
 				return Vector();
 			}
-			vect[0]=atof(child->get_child_text()->get_content().c_str());
+			vect[0]=atof(child->get_first_child_text()->get_content().c_str());
 		}
 		else
 		if(child->get_name()=="y")
@@ -394,7 +401,7 @@ CanvasParser::parse_vector(xmlpp::Element *element)
 				error(element, "Undefined value in <y>");
 				return Vector();
 			}
-			vect[1]=atof(child->get_child_text()->get_content().c_str());
+			vect[1]=atof(child->get_first_child_text()->get_content().c_str());
 		}
 		else
 		{
@@ -437,7 +444,7 @@ CanvasParser::parse_color(xmlpp::Element *element)
 				error(element, "Undefined value in <r>");
 				return Color();
 			}
-			color.set_r(atof(child->get_child_text()->get_content().c_str()));
+			color.set_r(atof(child->get_first_child_text()->get_content().c_str()));
 		}
 		else
 		if(child->get_name()=="g")
@@ -447,7 +454,7 @@ CanvasParser::parse_color(xmlpp::Element *element)
 				error(element, "Undefined value in <g>");
 				return Color();
 			}
-			color.set_g(atof(child->get_child_text()->get_content().c_str()));
+			color.set_g(atof(child->get_first_child_text()->get_content().c_str()));
 		}
 		else
 		if(child->get_name()=="b")
@@ -457,7 +464,7 @@ CanvasParser::parse_color(xmlpp::Element *element)
 				error(element, "Undefined value in <b>");
 				return Color();
 			}
-			color.set_b(atof(child->get_child_text()->get_content().c_str()));
+			color.set_b(atof(child->get_first_child_text()->get_content().c_str()));
 		}
 		else
 		if(child->get_name()=="a")
@@ -467,7 +474,7 @@ CanvasParser::parse_color(xmlpp::Element *element)
 				error(element, "Undefined value in <a>");
 				return Color();
 			}
-			color.set_a(atof(child->get_child_text()->get_content().c_str()));
+			color.set_a(atof(child->get_first_child_text()->get_content().c_str()));
 		}
 		else
 		{
@@ -485,7 +492,7 @@ CanvasParser::parse_string(xmlpp::Element *element)
 	assert(element->get_name()=="string");
 	if(element->get_children().empty())
 		return synfig::String();
-	return element->get_child_text()->get_content();
+	return element->get_first_child_text()->get_content();
 }
 
 bool

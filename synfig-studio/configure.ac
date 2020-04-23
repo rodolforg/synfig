@@ -108,6 +108,15 @@ PKG_CHECK_MODULES(SYNFIG, [synfig >= 1.5.0] [ETL >= 1.5.0] sigc++-2.0,,[
 AC_SUBST(SYNFIG_CFLAGS)
 AC_SUBST(SYNFIG_LIBS)
 
+PKG_CHECK_MODULES(LIBXMLPP, libxml++-3.0,[
+],[
+	PKG_CHECK_MODULES(LIBXMLPP, libxml++-2.6,[
+		SYNFIG_CFLAGS="$SYNFIG_CFLAGS -DLIBXMLPP_VERSION_2_6"
+	],[
+		AC_MSG_ERROR([ ** You need to install libxml++, either version 3.0 or 2.6.])
+	])
+])
+
 AC_ARG_ENABLE([jack],
     AS_HELP_STRING([--enable-jack],
            [ Enable experimental JACK transport support experimental ]),

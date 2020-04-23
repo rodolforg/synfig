@@ -54,6 +54,13 @@ using namespace studio;
 
 /* === M A C R O S ========================================================= */
 
+// hack hack hack
+#ifdef LIBXMLPP_VERSION_2_6
+#define add_child_element add_child
+#define set_first_child_text set_child_text
+#define get_first_child_text get_child_text
+#define const_NodeList NodeList
+#endif
 
 /* === G L O B A L S ======================================================= */
 
@@ -153,7 +160,7 @@ PluginManager::load_plugin( const std::string &path )
 			const xmlpp::Node* pNode = parser.get_document()->get_root_node(); //deleted by DomParser.
 			if ( std::string(pNode->get_name()) == std::string("plugin") ){
 				//Recurse through child nodes:
-				xmlpp::Node::NodeList list = pNode->get_children();
+				xmlpp::Node::const_NodeList list = pNode->get_children();
 				
 				unsigned int name_relevance = 0;
 
@@ -170,16 +177,16 @@ PluginManager::load_plugin( const std::string &path )
 					p.path = plugindir + ETL_DIRECTORY_SEPARATOR + exec;
 
 
-				for(xmlpp::Node::NodeList::iterator iter = list.begin(); iter != list.end(); ++iter)
+				for(xmlpp::Node::const_NodeList::iterator iter = list.begin(); iter != list.end(); ++iter)
 				{
 					const xmlpp::Node* node = *iter;
 					if ( std::string(node->get_name()) == std::string("name") ) {
 
 						const xmlpp::Element* nodeElement = dynamic_cast<const xmlpp::Element*>(node);
 						
-						xmlpp::Node::NodeList l = nodeElement->get_children();
-						xmlpp::Node::NodeList::iterator i = l.begin();
-						xmlpp::Node* n = *i;
+						xmlpp::Node::const_NodeList l = nodeElement->get_children();
+						xmlpp::Node::const_NodeList::iterator i = l.begin();
+						const xmlpp::Node* n = *i;
 						
 						const xmlpp::TextNode* nodeText = dynamic_cast<const xmlpp::TextNode*>(n);
 						
