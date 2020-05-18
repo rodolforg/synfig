@@ -34,7 +34,6 @@
 
 #include "app.h"
 #include <iostream>
-#include "ipc.h"
 #include <stdexcept>
 
 #include <gui/localization.h>
@@ -93,35 +92,12 @@ int main(int argc, char **argv)
 	bind_textdomain_codeset(GETTEXT_PACKAGE, "UTF-8");
 	textdomain(GETTEXT_PACKAGE);
 #endif
-	{
-		SmartFILE file(IPC::make_connection());
-		if(file)
-		{
-			cout << endl;
-			cout << "   " << _("synfig studio is already running") << endl << endl;
-			cout << "   " << _("the existing process will be used") << endl << endl;
-
-			// Hey, another copy of us is open!
-			// don't bother opening us, just go ahead and
-			// tell the other copy to load it all up
-			if (argc>1)
-				fprintf(file.get(),"F\n");
-
-			while(--argc)
-				if((argv)[argc] && (argv)[argc][0]!='-')
-					fprintf(file.get(),"O %s\n",etl::absolute_path((argv)[argc]).c_str());
-
-			fprintf(file.get(),"F\n");
-
-			return 0;
-		}
-	}
 
 	cout << endl;
 	cout << "   " << _("synfig studio -- starting up application...") << endl << endl;
 
 	SYNFIG_EXCEPTION_GUARD_BEGIN()
-	studio::App app(etl::dirname(binary_path), &argc, &argv);
+	studio::App app(etl::dirname(binary_path), argc, argv);
 
 	app.run();
 	std::cerr<<"Application appears to have terminated successfully"<<std::endl;

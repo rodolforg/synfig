@@ -115,8 +115,6 @@ class Dock_Navigator;
 class Dock_LayerGroups;
 class Dock_SoundWave;
 
-class IPC;
-
 class Module;
 
 class StateManager;
@@ -124,7 +122,7 @@ class IconController;
 
 class WorkspaceHandler;
 
-class App : public Gtk::Main, private IconController
+class App : public Gtk::Application
 {
 	friend class Preferences;
 	friend class Dialog_Setup;
@@ -167,8 +165,6 @@ private:
 	static Dock_History *dock_history;
 	static Dock_Canvases *dock_canvases;
 	static Dock_LayerGroups *dock_layer_groups;
-
-	static IPC *ipc;
 */
 
 	etl::smart_ptr<synfigapp::Main> synfigapp_main;
@@ -184,6 +180,8 @@ private:
 //	static std::list< etl::handle< Module > > module_list_;
 
 	static WorkspaceHandler *workspaces;
+
+	IconController *icon_controller;
 
 	/*
  -- ** -- P U B L I C   D A T A -----------------------------------------------
@@ -252,6 +250,12 @@ public:
 	/*
  -- ** -- S I G N A L S -------------------------------------------------------
 	*/
+protected:
+	virtual void on_startup() override;
+	virtual void on_activate() override;
+	virtual void on_open(const type_vec_files& files, const Glib::ustring& hint) override;
+	virtual void on_shutdown();
+
 /*      //declated as globals in app.cpp
 	static sigc::signal<
 		void,
@@ -313,13 +317,13 @@ private:
 
 public:
 
-	App(const synfig::String& basepath, int *argc, char ***argv);
-	virtual ~App();
+	App(const synfig::String& basepath);
+	App(const synfig::String& basepath, int& argc, char**& argv);
+	virtual ~App() override;
 
 	/*
  -- ** -- S T A T I C   P U B L I C   M E T H O D S ---------------------------
 	*/
-
 public:
 
 	static StateManager* get_state_manager();

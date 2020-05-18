@@ -28,7 +28,7 @@
 /* === H E A D E R S ======================================================= */
 
 #include <ETL/handle>
-#include <gtkmm/window.h>
+#include <gtkmm/applicationwindow.h>
 #include <gtkmm/box.h>
 #include <gtkmm/notebook.h>
 #include <gtkmm/actiongroup.h>
@@ -45,7 +45,7 @@ namespace studio {
 	class Dockable;
 	class DockBook;
 
-	class MainWindow: public Gtk::Window
+	class MainWindow: public Gtk::ApplicationWindow
 	{
 	private:
 		Gtk::Bin *bin_;
@@ -76,7 +76,7 @@ namespace studio {
 		virtual bool on_key_press_event(GdkEventKey *key_event);
 
 	public:
-		MainWindow();
+		MainWindow(const Glib::RefPtr< Gtk::Application >& application);
 		virtual ~MainWindow();
 
 		Gtk::Bin& root() { return *bin_; }

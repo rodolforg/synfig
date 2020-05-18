@@ -151,8 +151,6 @@
 #include "modules/module.h"
 #include "modules/mod_palette/mod_palette.h"
 
-#include "ipc.h"
-
 #include <gui/localization.h>
 
 #include "gui/resourcehelper.h"
@@ -254,7 +252,6 @@ studio::About              *studio::App::about          = NULL;
 studio::MainWindow         *studio::App::main_window    = NULL;
 studio::Dock_Toolbox       *studio::App::dock_toolbox   = NULL;
 studio::AutoRecover        *studio::App::auto_recover   = NULL;
-studio::IPC                *ipc                         = NULL;
 studio::DockManager        *studio::App::dock_manager   = 0;
 studio::DeviceTracker      *studio::App::device_tracker = 0;
 
@@ -1358,12 +1355,24 @@ DEFINE_ACTION("keyframe-properties", _("Properties"));
 
 /* === M E T H O D S ======================================================= */
 
-App::App(const synfig::String& basepath, int *argc, char ***argv):
-	Gtk::Main(argc,argv)
+App::App(const synfig::String& basepath)
+	: Gtk::Application("org.synfig.SynfigStudio", Gio::APPLICATION_HANDLES_OPEN)
 {
-
-	Glib::init(); // need to use Gio functions before app is started
 	app_base_path_=etl::dirname(basepath);
+	signal_shutdown().connect(sigc::mem_fun(*this, &App::on_shutdown));
+	icon_controller = nullptr;
+}
+
+App::App(const String& basepath, int& argc, char**& argv)
+	: Gtk::Application(argc, argv, "org.synfig.SynfigStudio", Gio::APPLICATION_HANDLES_OPEN)
+{
+	app_base_path_=etl::dirname(basepath);
+	signal_shutdown().connect(sigc::mem_fun(*this, &App::on_shutdown));
+	icon_controller = nullptr;
+}
+
+void App::on_startup() {
+	Gio::Application::on_startup();
 
 	// Set ui language
 	load_language_settings();
@@ -1381,7 +1390,8 @@ App::App(const synfig::String& basepath, int *argc, char ***argv):
 		+ ETL_DIRECTORY_SEPARATOR + "plugins";
 	
 	// icons
-	init_icons(path_to_icons + ETL_DIRECTORY_SEPARATOR);
+	icon_controller = new IconController();
+	icon_controller->init_icons(path_to_icons + ETL_DIRECTORY_SEPARATOR);
 
 	ui_interface_=new GlobalUIInterface();
 
@@ -1410,8 +1420,6 @@ App::App(const synfig::String& basepath, int *argc, char ***argv):
 	}
 
 
-	ipc=new IPC();
-
 	if(!SYNFIG_CHECK_VERSION())
 	{
 		std::cerr << "FATAL: Synfig Version Mismatch" << std::endl;
@@ -1437,7 +1445,7 @@ App::App(const synfig::String& basepath, int *argc, char ***argv):
 	SuperCallback studio_init_cb(splash_screen.get_callback(),9000,10000,10000);
 
 	// Initialize the Synfig library
-	try { synfigapp_main=etl::smart_ptr<synfigapp::Main>(new synfigapp::Main(basepath,&synfig_init_cb)); }
+	try { synfigapp_main=etl::smart_ptr<synfigapp::Main>(new synfigapp::Main(app_base_path_,&synfig_init_cb)); }
 	catch(std::runtime_error &x)
 	{
 		get_ui_interface()->error(strprintf("%s\n\n%s", _("Failed to initialize synfig!"), x.what()));
@@ -1491,7 +1499,8 @@ App::App(const synfig::String& basepath, int *argc, char ***argv):
 		state_manager=new StateManager();
 
 		studio_init_cb.task(_("Init Main Window..."));
-		main_window=new studio::MainWindow();
+		Glib::RefPtr<Gtk::Application> app(this);
+		main_window=new studio::MainWindow(app);
 		main_window->add_accel_group(App::ui_manager_->get_accel_group());
 
 		studio_init_cb.task(_("Init Toolbox..."));
@@ -1767,6 +1776,10 @@ StateManager* App::get_state_manager() { return state_manager; }
 
 App::~App()
 {
+}
+
+void App::on_shutdown()
+{
 	shutdown_in_progress=true;
 
 	save_settings();
@@ -1780,8 +1793,6 @@ App::~App()
 		;
 
 	delete state_manager;
-
-	delete ipc;
 
 	delete auto_recover;
 
@@ -1807,6 +1818,8 @@ App::~App()
 
 	if (sound_render_done) delete sound_render_done;
 	sound_render_done = NULL;
+
+	delete icon_controller;
 }
 
 synfig::String
@@ -2373,7 +2386,7 @@ App::quit()
 			return;
 	process_all_events();
 
-	Gtk::Main::quit();
+	Gio::Application::get_default()->quit();
 
 	get_ui_interface()->task(_("Quit Request sent"));
 }
@@ -3672,7 +3685,7 @@ try_open_uri(const std::string &uri)
 {
 #if GTK_CHECK_VERSION(3, 22, 0)
 	return gtk_show_uri_on_window(
-		App::main_window ? App::main_window->gobj() : NULL,
+		App::main_window ? GTK_WINDOW(App::main_window->gobj()) : NULL,
 		uri.c_str(), GDK_CURRENT_TIME, NULL );
 #else
 	return gtk_show_uri(NULL, uri.c_str(), GDK_CURRENT_TIME, NULL);
@@ -4398,9 +4411,9 @@ void
 studio::App::process_all_events(long unsigned int us)
 {
 	Glib::usleep(us);
-	while(studio::App::events_pending()) {
-		while(studio::App::events_pending())
-			studio::App::iteration(false);
+	while(Gdk::Event::events_pending()) {
+		while(Gdk::Event::events_pending())
+			Glib::MainContext::get_default()->iteration(false);
 		Glib::usleep(us);
 	}
 }
