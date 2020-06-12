@@ -1372,6 +1372,7 @@ App::App(const String& basepath, int& argc, char**& argv)
 }
 
 void App::on_startup() {
+	puts(__PRETTY_FUNCTION__);
 	Gio::Application::on_startup();
 
 	// Set ui language
@@ -1437,8 +1438,10 @@ void App::on_startup() {
 	}
 	Glib::set_application_name(_("Synfig Studio"));
 
-	Splash splash_screen;
-	splash_screen.show();
+	Glib::RefPtr<Gtk::Application> app(this);
+	Splash splash_screen(app);
+	splash_screen.show_all();
+	splash_screen.show_now();
 
 	shutdown_in_progress=false;
 	SuperCallback synfig_init_cb(splash_screen.get_callback(),0,9000,10000);
@@ -1499,7 +1502,6 @@ void App::on_startup() {
 		state_manager=new StateManager();
 
 		studio_init_cb.task(_("Init Main Window..."));
-		Glib::RefPtr<Gtk::Application> app(this);
 		main_window=new studio::MainWindow(app);
 		main_window->add_accel_group(App::ui_manager_->get_accel_group());
 
@@ -1692,38 +1694,10 @@ void App::on_startup() {
 			splash_screen.show();
 		}
 
-		// Look for any files given on the command line,
-		// and load them if found.
-		for(;*argc>=1;(*argc)--)
-			if((*argv)[*argc] && (*argv)[*argc][0]!='-')
-			{
-				studio_init_cb.task(_("Loading files..."));
-				splash_screen.hide();
-				open(Glib::locale_to_utf8((*argv)[*argc]));
-				opened_any = true;
-				splash_screen.show();
-			}
-
-		// if no file was specified to be opened, create a new document to help new users get started more easily
-		if (!opened_any && !getenv("SYNFIG_DISABLE_AUTOMATIC_DOCUMENT_CREATION"))
-			new_instance();
-
 		studio_init_cb.task(_("Done."));
 		studio_init_cb.amount_complete(10000,10000);
 
-		// To avoid problems with some window managers and gtk >= 2.18
-		// we should show dock dialogs after the settings load.
-		// If dock dialogs are shown before the settings are loaded,
-		// the windows manager can act over it.
-		// See discussions here:
-		// * https://synfig.org/forums/viewtopic.php?f=1&t=1131&st=0&sk=t&sd=a&start=30
-		// * https://synfig.org/forums/viewtopic.php?f=15&t=1062
-		dock_manager->show_all_dock_dialogs();
-
-		main_window->present();
-		dock_toolbox->present();
-
-		splash_screen.hide();
+//		splash_screen.hide();
 
 		String message;
 		String details;
@@ -1772,6 +1746,41 @@ void App::on_startup() {
 	App::dock_info_ = dock_info;
 }
 
+void App::on_activate() {
+	synfig::error(__PRETTY_FUNCTION__);
+	// To avoid problems with some window managers and gtk >= 2.18
+	// we should show dock dialogs after the settings load.
+	// If dock dialogs are shown before the settings are loaded,
+	// the windows manager can act over it.
+	// See discussions here:
+	// * https://synfig.org/forums/viewtopic.php?f=1&t=1131&st=0&sk=t&sd=a&start=30
+	// * https://synfig.org/forums/viewtopic.php?f=15&t=1062
+	dock_manager->show_all_dock_dialogs();
+
+	main_window->present();
+	dock_toolbox->present();
+
+
+	// if no file was specified to be opened, create a new document to help new users get started more easily
+//	if (!opened_any && !getenv("SYNFIG_DISABLE_AUTOMATIC_DOCUMENT_CREATION"))
+			new_instance();
+}
+
+void App::on_open(const Gio::Application::type_vec_files& files, const Glib::ustring& hint)
+{
+	synfig::error(__PRETTY_FUNCTION__);
+
+//	studio_init_cb.task(_("Loading files..."));
+//	splash_screen.hide();
+
+	for (auto f : files)
+		open(f->get_path());
+
+//	splash_screen.show();
+}
+
+
+
 StateManager* App::get_state_manager() { return state_manager; }
 
 App::~App()
@@ -1780,6 +1789,7 @@ App::~App()
 
 void App::on_shutdown()
 {
+	puts(__PRETTY_FUNCTION__);
 	shutdown_in_progress=true;
 
 	save_settings();
@@ -1798,9 +1808,9 @@ void App::on_shutdown()
 
 	delete about;
 
-	main_window->hide();
+//	main_window->hide();
 
-	delete main_window;
+//	delete main_window;
 
 	delete dialog_setup;
 
@@ -1820,6 +1830,8 @@ void App::on_shutdown()
 	sound_render_done = NULL;
 
 	delete icon_controller;
+
+	puts("____ END ___");
 }
 
 synfig::String
@@ -2359,6 +2371,7 @@ App::get_synfig_icon_theme()
 bool
 App::shutdown_request(GdkEventAny*)
 {
+	puts(__PRETTY_FUNCTION__);
 	quit();
 	return true;
 	//return !shutdown_in_progress;

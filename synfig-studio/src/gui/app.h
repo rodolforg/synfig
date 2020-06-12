@@ -183,6 +183,8 @@ private:
 
 	IconController *icon_controller;
 
+	synfig::String app_base_path;
+
 	/*
  -- ** -- P U B L I C   D A T A -----------------------------------------------
 	*/

@@ -34,6 +34,7 @@
 #include <gtk/gtk.h>
 
 #include <gtkmm/aboutdialog.h>
+#include <gtkmm/image.h>
 
 #include <ETL/stringf>
 
@@ -44,7 +45,6 @@
 
 #include "about.h"
 #include "app.h"
-
 #include <gui/localization.h>
 
 #include "gui/resourcehelper.h"

@@ -29,7 +29,7 @@
 
 /* === H E A D E R S ======================================================= */
 
-#include <gtkmm/window.h>
+#include <gtkmm/applicationwindow.h>
 #include <gtkmm/label.h>
 #include <gtkmm/button.h>
 #include <gtkmm/progressbar.h>
@@ -46,7 +46,7 @@ namespace studio {
 
 class SplashProgress;
 
-class Splash : public Gtk::Window
+class Splash : public Gtk::ApplicationWindow
 {
 	friend class SplashProgress;
 
@@ -62,7 +62,7 @@ public:
 
 	void enable_startup_notification();
 
-	Splash();
+	Splash(const Glib::RefPtr<Gtk::Application> &application);
 	~Splash();
 };
 

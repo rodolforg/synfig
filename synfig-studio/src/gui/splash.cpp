@@ -138,8 +138,8 @@ public:
 
 /* === M E T H O D S ======================================================= */
 
-Splash::Splash():
-	Gtk::Window(Gtk::WINDOW_TOPLEVEL)
+Splash::Splash(const Glib::RefPtr<Gtk::Application> &application):
+	Gtk::ApplicationWindow(application)
 {
 	std::string imagepath = ResourceHelper::get_image_path() + '/';
 
