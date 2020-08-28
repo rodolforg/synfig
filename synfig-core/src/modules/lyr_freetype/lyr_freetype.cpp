@@ -39,7 +39,9 @@
 #include <fontconfig/fontconfig.h>
 #endif
 
+#include <freetype/ftbitmap.h>
 #include <pango/pangocairo.h>
+#include <pango/pangoft2.h>
 
 #include "lyr_freetype.h"
 
@@ -262,6 +264,205 @@ private:
 	}
 };
 
+
+class Layer_Freetype::PangoStuff
+{
+	PangoFontMap* font_map;
+	PangoContext* context;
+	PangoLayout* layout;
+
+	FT_Bitmap cached_bmp;
+	PangoRectangle ink;
+
+	bool is_dirty;
+
+public:
+	PangoStuff()
+	 : font_map(nullptr),
+	   context(nullptr),
+	   layout(nullptr),
+	   is_dirty(true)
+	{
+		font_map = pango_ft2_font_map_new();
+		if (!font_map) {
+			synfig::error(_("Layer_Freetype: Cannot create font map from Pango+Freetype"));
+			return;
+		}
+		context = pango_font_map_create_context(font_map);
+		if (!context) {
+			synfig::error(_("Layer_Freetype: Cannot create context from font map"));
+			return;
+		}
+		layout = pango_layout_new(context);
+		if (!layout) {
+			synfig::error(_("Layer_Freetype: Cannot create pango layout from context"));
+			return;
+		}
+		pango_layout_set_single_paragraph_mode(layout, false);
+		FT_Bitmap_Init(&cached_bmp);
+	}
+
+	~PangoStuff()
+	{
+		g_object_unref(layout);
+		g_object_unref(context);
+		g_object_unref(font_map);
+		FT_Bitmap_Done(ft_library, &cached_bmp);
+	}
+
+	void set_font_description(const PangoFontDescription *new_font_desc) {
+		const PangoFontDescription *current_font_desc = pango_layout_get_font_description(layout);
+
+		if (current_font_desc && new_font_desc)
+			if (pango_font_description_equal(current_font_desc, new_font_desc))
+				return;
+
+		pango_layout_set_font_description(layout, new_font_desc);
+
+		is_dirty = true;
+	}
+
+	void set_resolution(int xres, int yres) {
+		pango_ft2_font_map_set_resolution((PangoFT2FontMap *)font_map, xres, yres);
+		is_dirty = true;
+	}
+
+	void set_text(const std::string& text) {
+		if (pango_layout_get_text(layout) == text)
+			return;
+
+		pango_layout_set_text(layout, text.c_str(), -1);
+
+		is_dirty = true;
+	}
+
+	void set_h_compress(double compress) {
+//		Real hspace = 0.5 * size_x * abs(1 - compress);
+//		PangoAttribute* spacing_attr = pango_attr_letter_spacing_new(hspace*PANGO_SCALE);
+//		pango_layout_set_attributes(layout, attr_list);
+	}
+
+	bool is_needing_sync() const {
+		return is_dirty;
+	}
+
+	void sync() {
+		PangoRectangle rect;//TODO: remove ink
+		pango_layout_get_extents(layout, &ink, &rect);
+//		printf("Rect: w: %i h: %i (%i x %i) [%i, %i]\n", rect.width, rect.height, rect.width/PANGO_SCALE, rect.height/PANGO_SCALE, rect.x/PANGO_SCALE, rect.y/PANGO_SCALE);
+//		printf("Ink: w: %i h: %i (%i x %i) [%i, %i]\n", ink.width, ink.height, ink.width/PANGO_SCALE, ink.height/PANGO_SCALE, ink.x/PANGO_SCALE, ink.y/PANGO_SCALE);
+
+		int width = round_to_int(rect.width/Real(PANGO_SCALE));
+		int height = round_to_int(rect.height/Real(PANGO_SCALE));
+
+//		pango_layout_get_size(layout, &width, &height);
+		pango_layout_set_width(layout, rect.width);
+		pango_layout_set_height(layout, rect.height);
+
+		/* FT buffer */
+		FT_Bitmap_Done(ft_library, &cached_bmp);
+		FT_Bitmap_Init(&cached_bmp);
+		cached_bmp.rows = height;
+		cached_bmp.width = width;
+
+
+		/* create our "canvas" */
+		cached_bmp.pitch = (width + 3) & -4;
+		cached_bmp.pixel_mode = FT_PIXEL_MODE_GRAY;
+		cached_bmp.num_grays = 256;
+
+		cached_bmp.buffer = (unsigned char*)malloc(cached_bmp.rows * cached_bmp.pitch);
+		if (! cached_bmp.buffer) {
+			// TODO
+			error(_("Layer_Freetype: cannot allocate the buffer for the output bitmap."));
+			return;
+		}
+		memset(cached_bmp.buffer, 0, cached_bmp.rows * cached_bmp.pitch);
+
+//		int stride = cairo_format_stride_for_width(CAIRO_FORMAT_A8, width);
+//		cairo_surface_t* surf = cairo_image_surface_create_for_data(bmp.buffer, CAIRO_FORMAT_A8, width, height, stride);
+
+//		  if (CAIRO_STATUS_SUCCESS != cairo_surface_status(surf)) {
+//			printf("+ error: couldn't create the surface.\n");
+//			exit(EXIT_FAILURE);
+//		  }
+
+//		  /* create our cairo context object that tracks state. */
+//		  cairo_t* cr = cairo_create(surf);
+//		  if (CAIRO_STATUS_NO_MEMORY == cairo_status(cr)) {
+//			printf("+ error: out of memory, cannot create cairo_t*\n");
+//			exit(EXIT_FAILURE);
+//		  }
+//		pango_cairo_update_layout(cr, layout);
+//		int status = cairo_surface_write_to_png(surf, "test_font.png");
+//		if (CAIRO_STATUS_SUCCESS != status) {
+//		  printf("+ error: couldn't write to png\n");
+//		  exit(EXIT_FAILURE);
+//		}
+
+//		cairo_surface_destroy(surf);
+//		cairo_destroy(cr);
+
+		pango_ft2_render_layout(&cached_bmp, layout, 0, 0);
+//		printf("Pixel mode: %i pitch (%i) %i\n", bmp.pixel_mode, bmp.pitch, pango_layout_get_width(layout));
+	}
+
+	synfig::Rect get_bounding_rect() const {
+		if (!layout)
+			return Rect();
+		PangoRectangle r;
+		puts(pango_layout_get_text(layout));
+		pango_layout_get_extents(layout, nullptr, &r);
+		return Rect(r.x/PANGO_SCALE, r.y/PANGO_SCALE, r.width/PANGO_SCALE, r.height/PANGO_SCALE);
+	}
+
+	void render(Surface *surface, const Color& color, Color::BlendMethod blend_method, float amount, const Point &orig, const Point &orient, bool invert) {
+
+		if (is_dirty)
+			sync();
+
+		Surface src_;
+		Surface *src_surface = surface;
+
+		if(invert)
+		{
+			src_ = *surface;
+			src_surface = &src_;
+			Surface::alpha_pen pen(surface->begin(), amount, blend_method);
+
+			surface->fill(color,pen,surface->get_w(), surface->get_h());
+		}
+
+		const int x0 = round_to_int(orig[0] - orient[0]*cached_bmp.width);
+		const int y0 = round_to_int(orig[1]+(orient[1])*pango_layout_get_baseline(layout)/Real(PANGO_SCALE)+ink.y/Real(PANGO_SCALE));
+		for(unsigned int v = 0; v < cached_bmp.rows; v++) {
+			int y= -v + y0;
+			for(unsigned int u = 0; u < cached_bmp.width; u++) {
+				int x= u + x0;
+//				printf("x,y %i, %i yo:%i or:%i v:%u, h:%u H:%i\n", x,y, round_to_int(orig[1]), round_to_int(orient[1]*cached_bmp.rows), v, cached_bmp.rows, surface->get_h());
+				if( y>=0 &&
+					x>=0 &&
+					y<surface->get_h() &&
+					x<surface->get_w())
+				{
+					Real myamount = cached_bmp.buffer[v*cached_bmp.pitch+u]/255.0;
+//					printf("%c", cached_bmp.buffer[v*cached_bmp.pitch+u] > 128 ? 'x' : ' ');
+//					myamount=1;
+					if(invert)
+						myamount = 1.0f - myamount;
+					(*surface)[y][x]=Color::blend(color, (*src_surface)[y][x], myamount*amount, blend_method);
+				}
+			}
+//			printf("\n");
+		}
+//		FT_Bitmap_Done(ft_library, &bmp);
+		const PangoMatrix *m;
+		m = pango_context_get_matrix(context);
+		if (m)
+			printf("%lf\t%lf\n%lf\t%lf\n", m->xx, m->xy, m->yx, m->yy);
+	}
+};
+
 /* === P R O C E D U R E S ================================================= */
 
 /*Glyph::~Glyph()
@@ -428,6 +629,8 @@ get_possible_font_filenames(synfig::String family, int style, int weight, std::v
 
 Layer_Freetype::Layer_Freetype()
 {
+	pango_stuff = new PangoStuff();
+
 	face=0;
 
 	param_size=ValueBase(Vector(0.25,0.25));
@@ -443,6 +646,7 @@ Layer_Freetype::Layer_Freetype()
 	param_use_kerning=ValueBase(true);
 	param_grid_fit=ValueBase(false);
 	param_invert=ValueBase(false);
+	param_use_pango=ValueBase(true);
 	param_font=ValueBase(synfig::String());
 
 	font_path_from_canvas = false;
@@ -466,6 +670,7 @@ Layer_Freetype::Layer_Freetype()
 
 Layer_Freetype::~Layer_Freetype()
 {
+	delete pango_stuff;
 }
 
 void
@@ -490,6 +695,8 @@ Layer_Freetype::on_canvas_set()
 void
 Layer_Freetype::new_font(const synfig::String &family, int style, int weight)
 {
+	if (param_use_pango.get(bool()))
+		return;
 	if(
 		!new_font_(family,style,weight) &&
 		!new_font_(family,style,TEXT_WEIGHT_NORMAL) &&
@@ -801,6 +1008,7 @@ Layer_Freetype::set_param(const String & param, const ValueBase &value)
 		}
 		);
 	IMPORT_VALUE(param_invert);
+	IMPORT_VALUE(param_use_pango);
 	IMPORT_VALUE_PLUS(param_orient,needs_sync_=true);
 	IMPORT_VALUE_PLUS(param_compress,needs_sync_=true);
 	IMPORT_VALUE_PLUS(param_vcompress,needs_sync_=true);
@@ -830,6 +1038,7 @@ Layer_Freetype::get_param(const String& param)const
 	EXPORT_VALUE(param_use_kerning);
 	EXPORT_VALUE(param_grid_fit);
 	EXPORT_VALUE(param_invert);
+	EXPORT_VALUE(param_use_pango);
 
 	EXPORT_NAME();
 	EXPORT_VERSION();
@@ -926,8 +1135,14 @@ Layer_Freetype::get_param_vocab(void)const
 		.set_local_name(_("Sharpen Edges"))
 		.set_description(_("Turn this off if you are animating the text"))
 	);
+
 	ret.push_back(ParamDesc("invert")
 		.set_local_name(_("Invert"))
+	);
+
+	ret.push_back(ParamDesc("use_pango")
+		.set_local_name(_("Use Pango renderer"))
+		.set_description(_("Use pango for text rendering. Uncheck for supporting of old Synfig files"))
 	);
 	return ret;
 }
@@ -992,7 +1207,7 @@ Layer_Freetype::accelerated_render(Context context,Surface *surface,int quality,
 		return true;
 
 	// If there is no font loaded, just bail
-	if(!face)
+	if(!param_use_pango.get(bool()) && !face)
 	{
 		if(cb)cb->warning(string("Layer_Freetype:")+_("No face loaded, no text will be rendered."));
 		return true;
@@ -1019,6 +1234,31 @@ Layer_Freetype::accelerated_render(Context context,Surface *surface,int quality,
 		return true;
 	}
 
+	if (param_use_pango.get(bool())) {
+		PangoFontDescription *desc = pango_font_description_new();
+		pango_font_description_set_family_static(desc, param_family.get(string()).c_str());
+		pango_font_description_set_style(desc, PangoStyle(param_style.get(int())));
+		pango_font_description_set_weight(desc, PangoWeight(param_weight.get(int())));
+	//	pango_font_description_set_style(desc, PangoStyle(param_style.get(int())));
+
+		pango_font_description_set_absolute_size(desc, h * PANGO_SCALE /1.13f/0.996);
+		pango_stuff->set_font_description(desc);
+		pango_font_description_free(desc);
+
+		pango_stuff->set_text(param_text.get(string()).c_str());
+//		pango_stuff->set_resolution(round_to_int(abs(size[0]*pw*64)),						// horizontal device resolution
+//				round_to_int(abs(size[1]*ph*64)));
+		int sign_y = ph >= 0.0 ? 1 : -1;
+		Real offset_x = (origin[0]-renddesc.get_tl()[0])*pw;
+		Real offset_y = (origin[1]-renddesc.get_tl()[1])*ph
+				      /*- sign_y*text_height*(1.0 - orient[1])*/;
+		printf("offset: %lf, %lf\n", offset_x, offset_y);
+		pango_stuff->render(surface, color, get_blend_method(), get_amount(), Point(offset_x, offset_y), orient, invert);
+//first = false;
+		return true;
+	}
+//	else
+//		return true;
 	std::lock_guard<std::recursive_mutex> lock(freetype_mutex);
 
 #define CHAR_RESOLUTION		(64)

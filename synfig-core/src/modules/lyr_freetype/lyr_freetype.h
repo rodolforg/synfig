@@ -76,6 +76,8 @@ private:
 	synfig::ValueBase param_grid_fit;
 	//!Parameter: (bool) inverts the rendered text
 	synfig::ValueBase param_invert;
+	//!Parameter: (bool) uses old font renderer algorithm
+	synfig::ValueBase param_use_pango;
 
 	FT_Face face;
 
@@ -112,6 +114,9 @@ private:
 	void new_font(const synfig::String &family, int style=0, int weight=400);
 	bool new_font_(const synfig::String &family, int style=0, int weight=400);
 	bool new_face(const synfig::String &newfont);
+
+	class PangoStuff;
+	PangoStuff* pango_stuff;
 };
 
 /* === E N D =============================================================== */
