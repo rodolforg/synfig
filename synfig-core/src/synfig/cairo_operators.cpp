@@ -2,8 +2,6 @@
 /*!	\file template.cpp
  **	\brief Template File
  **
- **	$Id$
- **
  **	\legal
  **	Copyright (c) 2012-2013 Carlos López
  **

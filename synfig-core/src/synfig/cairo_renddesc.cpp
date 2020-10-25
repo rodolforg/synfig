@@ -2,8 +2,6 @@
 /*!	\file cairo_renddesc.cpp
  **	\brief Implementation of Cairo helper functions with RendDesc
  **
- **	$Id$
- **
  **	\legal
  **	Copyright (c) 2013 Carlos López
  **

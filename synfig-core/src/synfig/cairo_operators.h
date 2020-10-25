@@ -2,8 +2,6 @@
 /*!	\file cairo_operators.h
  **	\brief Helper functions that use Cairo operators to do Synfig blending
  **
- **	$Id$
- **
  **	\legal
  **	Copyright (c) 2012-2013 Carlos López
  **

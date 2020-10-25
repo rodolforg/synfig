@@ -2,8 +2,6 @@
 /*!	\file trgt_cairo_png.cpp
 **	\brief png_cairo_trgt Target Png Cairo Module
 **
-**	$Id$
-**
 **	\legal
 **	Copyright (c) 2002-2005 Robert B. Quattlebaum Jr., Adrian Bentley
 **	Copyright (c) 2007 Chris Moore

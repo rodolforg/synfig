@@ -2,8 +2,6 @@
 /*!	\file target_cairo.h
 **	\brief Template Header for the Target Cairo class
 **
-**	$Id$
-**
 **	\legal
 **	Copyright (c) 2002-2005 Robert B. Quattlebaum Jr., Adrian Bentley
 **	Copyright (c) 2012-2013 Carlos López
