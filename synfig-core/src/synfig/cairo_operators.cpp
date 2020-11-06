@@ -1,5 +1,5 @@
 /* === S Y N F I G ========================================================= */
-/*!	\file template.cpp
+/*!	\file synfig/cairo_operators.cpp
  **	\brief Template File
  **
  **	\legal

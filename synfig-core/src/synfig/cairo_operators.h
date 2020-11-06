@@ -1,5 +1,5 @@
 /* === S Y N F I G ========================================================= */
-/*!	\file cairo_operators.h
+/*!	\file synfig/cairo_operators.h
  **	\brief Helper functions that use Cairo operators to do Synfig blending
  **
  **	\legal

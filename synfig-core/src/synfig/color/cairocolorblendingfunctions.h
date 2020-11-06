@@ -1,5 +1,5 @@
 /* === S Y N F I G ========================================================= */
-/*!	\file
+/*!	\file synfig/color/cairocolorblendingfunctions.h
 **	\brief Color blending function specializations for CairoColor
 **
 **	\legal

@@ -1,5 +1,5 @@
 /* === S Y N F I G ========================================================= */
-/*!	\file
+/*!	\file synfig/color/cairocoloraccumulator.h
 **	\brief CairoColorAccumulator Class Implementation
 **
 **	\legal

@@ -1,5 +1,5 @@
 /* === S Y N F I G ========================================================= */
-/*!	\file
+/*!	\file synfig/color/cairocolor.cpp
 **	\brief CairoColor class implementation
 **
 **	\legal
