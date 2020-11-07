@@ -1,6 +1,6 @@
 /* === S Y N F I G ========================================================= */
 /*!	\file mptr_cairo_png.h
-**	\brief Template Header
+**	\brief Header for Cairo PNG Importer (cairo_png_mptr)
 **
 **	\legal
 **	Copyright (c) 2002-2005 Robert B. Quattlebaum Jr., Adrian Bentley

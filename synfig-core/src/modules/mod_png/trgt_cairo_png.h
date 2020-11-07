@@ -1,6 +1,6 @@
 /* === S Y N F I G ========================================================= */
 /*!	\file trgt_cairo_png.h
-**	\brief Template Header Target Png Cairo Module
+**	\brief Header of Target Png Cairo Module
 **
 **	\legal
 **	Copyright (c) 2002-2005 Robert B. Quattlebaum Jr., Adrian Bentley
