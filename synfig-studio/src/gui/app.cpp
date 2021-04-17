@@ -1371,6 +1371,7 @@ DEFINE_ACTION("keyframe-properties", _("Properties"));
 	ACCEL("<Mod1>o",								"<Actions>/canvasview/toggle-onion-skin"				);
 	ACCEL("<Control><Shift>z",							"<Actions>/canvasview/canvas-zoom-fit"					);
 	ACCEL("<Control>p",								"<Actions>/canvasview/play"						);
+	ACCEL("<Control>space",          "<Actions>/canvasview/animate"						);
 
 
 #undef ACCEL
