@@ -200,6 +200,10 @@ MainWindow::init_menus()
 		sigc::ptr_fun(App::edit_custom_workspace_list)
 	);
 
+	action_group->add( Gtk::Action::create("switch-workspace", _("Toggle favorite x current workspace...")),
+		sigc::ptr_fun(App::switch_workspace)
+	);
+
 	// help
 	#define URL(action_name,title,url) \
 		action_group->add( Gtk::Action::create(action_name, title), \
@@ -276,6 +280,7 @@ void MainWindow::add_custom_workspace_menu_item_handlers()
 			"	    <separator name='sep-window2'/>"
 			"		<menuitem action='save-workspace' />"
 			"		<menuitem action='edit-workspacelist' />"
+			"		<menuitem action='switch-workspace' />"
 			"	</menu>"
 			"</menu>";
 

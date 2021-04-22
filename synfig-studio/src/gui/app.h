@@ -342,6 +342,7 @@ public:
 	static void load_custom_workspaces();
 	static void save_custom_workspace();
 	static void edit_custom_workspace_list();
+	static void switch_workspace();
 	static void apply_gtk_settings();
 
 	static std::string get_synfig_icon_theme();

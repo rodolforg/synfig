@@ -1283,6 +1283,7 @@ DEFINE_ACTION("keyframe-properties", _("Properties"))
 		{"<Control>l",              "<Actions>/canvasview/toggle-grid-snap"},
 		{"<Control>n",              "<Actions>/mainwindow/new"},
 		{"<Control>o",              "<Actions>/mainwindow/open"},
+		{"<Shift>F11",              "<Actions>/mainwindow/switch-workspace"},
 		{"<Control>s",              "<Actions>/canvasview/save"},
 		{"<Control><Shift>s",       "<Actions>/canvasview/save-as"},
 		{"<Control>grave",          "<Actions>/canvasview/toggle-low-res"},
@@ -2205,6 +2206,24 @@ void App::edit_custom_workspace_list()
 	}
 	dlg->run();
 	delete dlg;
+}
+
+void App::switch_workspace()
+{
+	static std::string user_workspace_layout;
+	std::string fav_layout;
+	if (!get_workspace_handler()->get_workspace(get_workspace_handler()->get_favorite(), fav_layout)) {
+		return;
+	}
+
+	std::string current_layout = dock_manager->save_layout_to_string();
+
+	if (current_layout != fav_layout) {
+		user_workspace_layout = current_layout;
+		set_workspace_from_template(fav_layout);
+	} else {
+		set_workspace_from_template(user_workspace_layout);
+	}
 }
 
 void
