@@ -51,15 +51,6 @@ static Glib::RefPtr<Gtk::Builder> load_interface() {
 	return refBuilder;
 }
 
-class WorkspaceCols: public Gtk::TreeModel::ColumnRecord {
-    public:
-        WorkspaceCols() {
-            this->add(this->col_name);
-        }
-
-        Gtk::TreeModelColumn<Glib::ustring> col_name;
-};
-
 Dialog_Workspaces::Dialog_Workspaces(Gtk::Dialog::BaseObjectType* cobject, const Glib::RefPtr<Gtk::Builder>& refGlade) :
 	Gtk::Dialog(cobject),
 	builder(refGlade),
@@ -76,6 +67,10 @@ Dialog_Workspaces::Dialog_Workspaces(Gtk::Dialog::BaseObjectType* cobject, const
 	if (delete_button)
 		delete_button->signal_clicked().connect(sigc::mem_fun(*this, &Dialog_Workspaces::on_delete_clicked));
 
+	refGlade->get_widget("workspaces_favorite_button", favorite_button);
+	if (favorite_button)
+		favorite_button->signal_clicked().connect(sigc::mem_fun(*this, &Dialog_Workspaces::on_favorite_clicked));
+
 	refGlade->get_widget("workspaces_rename_button", rename_button);
 	if (rename_button)
 		rename_button->signal_clicked().connect(sigc::mem_fun(*this, &Dialog_Workspaces::on_rename_clicked));
@@ -89,10 +84,6 @@ Dialog_Workspaces::Dialog_Workspaces(Gtk::Dialog::BaseObjectType* cobject, const
 		workspace_model = Glib::RefPtr<Gtk::ListStore>::cast_dynamic(
 					refGlade->get_object("workspaces_liststore")
 				);
-//		WorkspaceCols ws_cols;
-//		Gtk::TreeModel::Row row = *workspace_model->append();
-//		row[ws_cols.col_name] = "ui";
-//		workspace_model->append()->set_value(0, Glib::ustring("ui"));
 
 		App::signal_custom_workspaces_changed().connect(sigc::mem_fun(*this, &Dialog_Workspaces::rebuild_list));
 
@@ -120,8 +111,12 @@ Dialog_Workspaces::~Dialog_Workspaces()
 
 void Dialog_Workspaces::on_selection_changed()
 {
+	std::string icon;
 	int count = current_selection->count_selected_rows();
+	if (count > 0)
+		workspace_model->get_iter(current_selection->get_selected_rows()[0])->get_value(1, icon);
 	rename_button->set_sensitive(count == 1);
+	favorite_button->set_sensitive(count == 1 && icon.empty());
 	delete_button->set_sensitive(count > 0);
 }
 
@@ -144,6 +139,14 @@ void Dialog_Workspaces::on_delete_clicked()
 	for (const std::string & name : names) {
 		App::get_workspace_handler()->remove_workspace(name);
 	}
+}
+
+void Dialog_Workspaces::on_favorite_clicked()
+{
+	std::string selected_name;
+	Gtk::TreePath selected_path = current_selection->get_selected_rows()[0];
+	workspace_model->get_iter(selected_path)->get_value(0, selected_name);
+	App::get_workspace_handler()->set_favorite(selected_name);
 }
 
 void Dialog_Workspaces::on_rename_clicked()
@@ -202,11 +205,22 @@ void Dialog_Workspaces::on_rename_clicked()
 
 void Dialog_Workspaces::rebuild_list()
 {
+	Gtk::TreePath previously_selected_path;
+	if (current_selection->count_selected_rows() > 0) {
+		previously_selected_path = current_selection->get_selected_rows()[0];
+	}
 	workspace_model->clear();
 
 	WorkspaceHandler *workspaces = App::get_workspace_handler();
 	std::vector<std::string> names;
 	workspaces->get_name_list(names);
-	for (const std::string & name : names)
-		workspace_model->append()->set_value(0, name);
+	for (const std::string & name : names) {
+		Gtk::TreeIter row = workspace_model->append();
+		row->set_value(0, name);
+		if (workspaces->get_favorite() == name)
+			row->set_value(1, std::string("starred"));
+	}
+
+	if (previously_selected_path)
+		current_selection->select(previously_selected_path);
 }

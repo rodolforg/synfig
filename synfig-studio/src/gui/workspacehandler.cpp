@@ -48,7 +48,7 @@ bool
 WorkspaceHandler::is_valid_name(const std::string& name)
 {
 	std::string valid_name = synfig::trim(name);
-	return !valid_name.empty() && valid_name.find("=") == std::string::npos;
+	return !valid_name.empty() && valid_name.find("=") == std::string::npos && valid_name.front() != '*';
 }
 
 bool
@@ -74,6 +74,8 @@ void
 WorkspaceHandler::remove_workspace(const std::string& name)
 {
 	size_t count = workspaces.erase(name);
+	if (name == favorite_workspace_name)
+		favorite_workspace_name.clear();
 	if (count > 0)
 		signal_list_changed_.emit();
 }
@@ -82,6 +84,7 @@ void WorkspaceHandler::clear()
 {
 	size_t previous_size = workspaces.size();
 	workspaces.clear();
+	favorite_workspace_name.clear();
 	if (previous_size > 0)
 		signal_list_changed_.emit();
 }
@@ -116,6 +119,24 @@ WorkspaceHandler::get_name_list(std::vector<std::string>& list)
 		list.push_back(it->first);
 }
 
+void WorkspaceHandler::set_favorite(const std::string& name)
+{
+	if (favorite_workspace_name == name)
+		return;
+
+	if (name.empty()) {
+		favorite_workspace_name.clear();
+	} else if (is_valid_name(name) && has_workspace(name)) {
+		favorite_workspace_name = name;
+	}
+	signal_list_changed().emit();
+}
+
+const std::string& WorkspaceHandler::get_favorite() const
+{
+	return favorite_workspace_name;
+}
+
 bool
 WorkspaceHandler::save(const std::string& filename)
 {
@@ -124,8 +145,12 @@ WorkspaceHandler::save(const std::string& filename)
 		synfig::error(_("Can't save custom workspaces"));
 		return false;
 	}
-	for (auto it = workspaces.begin(); it != workspaces.end(); ++it)
-		ofs << it->first << "=" << it->second << std::endl;
+	for (auto it = workspaces.begin(); it != workspaces.end(); ++it) {
+		const std::string &name = it->first;
+		if (name == get_favorite())
+			ofs << "*";
+		ofs << name << "=" << it->second << std::endl;
+	}
 	ofs.close();
 	return true;
 }
@@ -147,7 +172,15 @@ WorkspaceHandler::load(const std::string& filename)
 			continue;
 		}
 
+		bool is_favorite = line.front() == '*';
+
 		std::string name = line.substr(0, pos);
+		if (is_favorite && !name.empty())
+			name = name.substr(1);
+		if (!is_valid_name(name)) {
+			synfig::error(_("ignoring workspace with invalid name: %s"), name.c_str());
+			continue;
+		}
 		if (has_workspace(name)) {
 			synfig::warning(_("ignoring duplicated workspace name: %s"), name.c_str());
 			continue;
@@ -155,6 +188,8 @@ WorkspaceHandler::load(const std::string& filename)
 
 		std::string tpl = line.substr(pos+1);
 		workspaces[name] = tpl;
+		if (is_favorite)
+			favorite_workspace_name = name;
 		count++;
 	}
 	if (count > 0)

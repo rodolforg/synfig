@@ -54,6 +54,9 @@ public:
 	/// \param[out] list List of workspace names
 	void get_name_list(std::vector<std::string>& list);
 
+	void set_favorite(const std::string &name);
+	const std::string& get_favorite() const;
+
 	/// load custom workspace layouts from a config file
 	void load(const std::string& filename);
 	/// stores custom workspace layouts in a config file
@@ -65,6 +68,8 @@ private:
 	std::map<std::string, std::string> workspaces;
 
 	sigc::signal<void> signal_list_changed_;
+
+	std::string favorite_workspace_name;
 };
 
 }

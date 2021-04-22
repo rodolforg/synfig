@@ -18,6 +18,7 @@ class Dialog_Workspaces : public Gtk::Dialog
 	const Glib::RefPtr<Gtk::Builder>& builder;
 
 	Gtk::Button * rename_button;
+	Gtk::Button * favorite_button;
 	Gtk::Button * delete_button;
 
 	Glib::RefPtr<Gtk::TreeSelection> current_selection;
@@ -31,6 +32,7 @@ public:
 private:
 	void on_selection_changed();
 	void on_delete_clicked();
+	void on_favorite_clicked();
 	void on_rename_clicked();
 
 	void rebuild_list();
