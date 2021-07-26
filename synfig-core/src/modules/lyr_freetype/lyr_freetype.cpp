@@ -62,8 +62,6 @@ using namespace synfig;
 
 /* === M A C R O S ========================================================= */
 
-#define MAX_GLYPHS		2000
-
 // Copy of PangoStyle
 // It is necessary to keep original values if Pango ever change them
 //  - because it would change layer rendering as Synfig stores the parameter
@@ -125,17 +123,16 @@ struct VisualTextLine
 	int width = 0;
 	std::vector<Glyph> glyph_table;
 
-	int actual_height()const
+	uint32_t actual_height() const
 	{
-		int height(0);
+		uint32_t height(0);
 
-		std::vector<Glyph>::const_iterator iter;
-		for(iter=glyph_table.begin();iter!=glyph_table.end();++iter)
+		for (const auto& glyph : glyph_table)
 		{
 			FT_BBox   glyph_bbox;
 
 			//FT_Glyph_Get_CBox( glyphs[n], ft_glyph_bbox_pixels, &glyph_bbox );
-			FT_Glyph_Get_CBox( iter->glyph, ft_glyph_bbox_subpixels, &glyph_bbox );
+			FT_Glyph_Get_CBox( glyph.glyph, ft_glyph_bbox_subpixels, &glyph_bbox );
 
 			if(glyph_bbox.yMax>height)
 				height=glyph_bbox.yMax;
@@ -147,7 +144,7 @@ struct VisualTextLine
 #ifdef WITH_FONTCONFIG
 // Allow proper finalization of FontConfig
 struct FontConfigWrap {
-	static FcConfig* init() {
+	static FcConfig* instance() {
 		static FontConfigWrap obj;
 		return obj.config;
 	}
@@ -187,8 +184,8 @@ struct FontMeta {
 	//!  Empty string otherwise
 	std::string canvas_path;
 
-	FontMeta(synfig::String family, int style=0, int weight=400)
-		: family(family), style(style), weight(weight)
+	explicit FontMeta(synfig::String family, int style=0, int weight=400)
+		: family(std::move(family)), style(style), weight(weight)
 	{}
 
 	bool operator==(const FontMeta& other) const
@@ -239,6 +236,7 @@ struct FaceInfo {
 /// Cache font faces for speeding up the text layer rendering
 class FaceCache {
 	std::map<FontMeta, FaceInfo> cache;
+	FaceCache() = default; // Make constructor private to prevent instancing
 public:
 	FaceInfo get(const FontMeta &meta) const {
 		auto iter = cache.find(meta);
@@ -257,7 +255,7 @@ public:
 	}
 
 	void clear() {
-		for (auto item : cache) {
+		for (const auto& item : cache) {
 			FT_Done_Face(item.second.face);
 #if HAVE_HARFBUZZ
 			hb_font_destroy(item.second.font);
@@ -271,9 +269,9 @@ public:
 		return obj;
 	}
 
-private:
-	FaceCache() {}
-	FaceCache(const FaceCache&) = delete;
+	FaceCache(const FaceCache&) = delete; // Copy prohibited
+	void operator=(const FaceCache&) = delete; // Assignment prohibited
+	FaceCache& operator=(FaceCache&&) = delete; // Move assignment prohibited
 
 	~FaceCache() {
 		clear();
@@ -418,7 +416,7 @@ get_possible_font_filenames(synfig::String family, int style, int weight, std::v
 				list.push_back(filename);
 
 				filename = entry.preffix;
-				filename += entry.get_alternative_suffix(style, weight);
+				filename += FontFileNameEntry::get_alternative_suffix(style, weight);
 				list.push_back(filename);
 			}
 		}
@@ -465,10 +463,6 @@ Layer_Freetype::Layer_Freetype()
 	SET_STATIC_DEFAULTS();
 
 	set_description(param_text.get(String()));
-}
-
-Layer_Freetype::~Layer_Freetype()
-{
 }
 
 void
@@ -526,8 +520,6 @@ Layer_Freetype::new_font_(const synfig::String &font_fam_, int style, int weight
 		return true;
 	}
 
-	synfig::String font_fam(font_fam_);
-
 	if (has_valid_font_extension(font_fam_))
 		if (new_face(font_fam_)) {
 			if (!font_path_from_canvas)
@@ -570,7 +562,7 @@ Layer_Freetype::new_font_(const synfig::String &font_fam_, int style, int weight
 
 static std::string fontconfig_get_filename(const std::string& font_fam, int style, int weight) {
 	std::string filename;
-	FcConfig* fc = FontConfigWrap::init();
+	FcConfig* fc = FontConfigWrap::instance();
 	if( !fc )
 	{
 		synfig::warning("Layer_Freetype: fontconfig: %s",_("unable to initialize"));
@@ -649,7 +641,7 @@ Layer_Freetype::new_face(const String &newfont)
 
 	std::vector<std::string> possible_font_directories = get_possible_font_directories(canvas_path);
 
-	for (std::string directory : possible_font_directories) {
+	for (const std::string& directory : possible_font_directories) {
 		for (const char *extension : possible_font_extensions) {
 			std::string path = (directory + newfont + extension);
 			error = FT_New_Face(ft_library, path.c_str(), face_index, &face);
@@ -1112,7 +1104,7 @@ Layer_Freetype::accelerated_render(Context context,Surface *surface,int quality,
         curr_glyph.pos.y = by;
 
         // load glyph image into the slot. DO NOT RENDER IT !!
-        if(grid_fit)
+		if(grid_fit)
 			error = FT_Load_Glyph( face, glyph_index, FT_LOAD_DEFAULT);
 		else
 			error = FT_Load_Glyph( face, glyph_index, FT_LOAD_DEFAULT|FT_LOAD_NO_HINTING );
@@ -1398,7 +1390,7 @@ Layer_Freetype::fetch_text_lines(const std::string& text)
 
 	// 4. Split text into lines (and text spans according to their script if we know them)
 #if not HAVE_HARFBUZZ
-	for (auto line : base_lines) {
+	for (const auto& line : base_lines) {
 		TextLine current_line;
 
 		for (uint32_t codepoint : line) {
@@ -1412,7 +1404,7 @@ Layer_Freetype::fetch_text_lines(const std::string& text)
 	}
 #else
 	hb_unicode_funcs_t* ufuncs = hb_unicode_funcs_get_default();
-	for (auto line : base_lines) {
+	for (const auto& line : base_lines) {
 		TextLine current_line;
 		hb_script_t current_script = HB_SCRIPT_INVALID;
 
