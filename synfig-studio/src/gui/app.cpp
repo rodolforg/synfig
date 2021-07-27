@@ -97,7 +97,7 @@
 #include <gui/docks/dock_toolbox.h>
 
 #include <gui/instance.h>
-#include <gui/ipc.h>
+// #include <gui/ipc.h>
 #include <gui/localization.h>
 #include <gui/modules/mod_palette/mod_palette.h>
 #include <gui/onemoment.h>
@@ -238,7 +238,7 @@ etl::handle<CanvasView> App::selected_canvas_view;
 studio::About              *studio::App::about          = nullptr;
 studio::AutoRecover        *studio::App::auto_recover   = nullptr;
 studio::DeviceTracker      *studio::App::device_tracker = nullptr;
-static studio::IPC         *ipc                         = nullptr;
+// static studio::IPC         *ipc                         = nullptr;
 studio::MainWindow         *studio::App::main_window    = nullptr;
 
 studio::Dialog_Color       *studio::App::dialog_color;
@@ -1346,11 +1346,16 @@ App::get_default_accel_map()
 
 	return default_accel_map;
 }
+Glib::RefPtr<App> App::instance() {
+	static Glib::RefPtr<studio::App> app_reference = Glib::RefPtr<App>(new App());
+	return app_reference;
+}
 
 /* === M E T H O D S ======================================================= */
+App::App() :
+	Gtk::Application("org.synfig.SynfigStudio") {}
 
-App::App(const synfig::String& basepath, int *argc, char ***argv):
-	Gtk::Main(argc,argv)
+void App::init(const synfig::String& basepath, int *argc, char ***argv)
 {
 
 	Glib::init(); // need to use Gio functions before app is started
@@ -1397,7 +1402,7 @@ App::App(const synfig::String& basepath, int *argc, char ***argv):
 	}
 
 
-	ipc=new IPC();
+	// ipc=new IPC();
 
 	if(!SYNFIG_CHECK_VERSION())
 	{
@@ -1761,6 +1766,7 @@ App::App(const synfig::String& basepath, int *argc, char ***argv):
 		SoundProcessor::Sound(ResourceHelper::get_sound_path("renderdone.wav")));
 
 	App::dock_info_ = dock_info;
+	add_window(*main_window);
 }
 
 StateManager* App::get_state_manager() { return state_manager; }
@@ -1782,7 +1788,7 @@ App::~App()
 
 	delete state_manager;
 
-	delete ipc;
+	// delete ipc;
 
 	delete auto_recover;
 
@@ -2312,7 +2318,8 @@ App::quit()
 			return;
 	process_all_events();
 
-	Gtk::Main::quit();
+	// Gtk::Main::quit();
+	App::instance()->remove_window(*main_window);
 
 	get_ui_interface()->task(_("Quit Request sent"));
 }
@@ -4389,12 +4396,12 @@ studio::App::setup_changed()
 void
 studio::App::process_all_events(long unsigned int us)
 {
-	Glib::usleep(us);
+	/*Glib::usleep(us);
 	while(studio::App::events_pending()) {
 		while(studio::App::events_pending())
 			studio::App::iteration(false);
 		Glib::usleep(us);
-	}
+	}*/
 }
 
 bool
