@@ -109,7 +109,7 @@ synfigapp::Main::Main(const synfig::String &basepath, synfig::ProgressCallback *
 
 #ifdef ENABLE_NLS
 	String locale_dir;
-	locale_dir = etl::dirname(basepath)+ETL_DIRECTORY_SEPARATOR+"share"+ETL_DIRECTORY_SEPARATOR+"locale";
+	locale_dir = basepath+ETL_DIRECTORY_SEPARATOR+"share"+ETL_DIRECTORY_SEPARATOR+"locale";
 	
 	bindtextdomain(GETTEXT_PACKAGE, Glib::locale_from_utf8(locale_dir).c_str() );
 	bind_textdomain_codeset(GETTEXT_PACKAGE, "UTF-8");

@@ -130,7 +130,7 @@ class App : public Gtk::Application, private IconController
 
 public:
 	static Glib::RefPtr<App> instance();
-	void init(const synfig::String& basepath, int *argc, char ***argv);
+	void run(int argc, char** argv);
 
 	struct Busy
 	{
@@ -307,7 +307,17 @@ private:
 	static void add_recent_file(const std::string &filename, bool emit_signal);
 	
 	App();
-	virtual ~App();
+	virtual ~App() override;
+
+	/*
+ -- ** -- P R O T E C T E D   M E T H O D S ---------------------------------------
+	*/
+
+protected:
+	void on_startup() override;
+	void on_activate() override;
+	void on_shutdown();
+	void on_open(const type_vec_files& files, const Glib::ustring& hint) override;
 
 	/*
  -- ** -- S T A T I C   P U B L I C   M E T H O D S ---------------------------

@@ -1346,20 +1346,43 @@ App::get_default_accel_map()
 
 	return default_accel_map;
 }
-Glib::RefPtr<App> App::instance() {
+
+/* === M E T H O D S ======================================================= */
+Glib::RefPtr<App>
+App::instance()
+{
 	static Glib::RefPtr<studio::App> app_reference = Glib::RefPtr<App>(new App());
 	return app_reference;
 }
 
-/* === M E T H O D S ======================================================= */
-App::App() :
-	Gtk::Application("org.synfig.SynfigStudio") {}
-
-void App::init(const synfig::String& basepath, int *argc, char ***argv)
+void
+App::run(int argc, char** argv)
 {
+	if (argc > 0) {
+		String binary_path = synfig::get_binary_path(String(argv[0]));
+		app_base_path_ = etl::dirname(binary_path);
+	}
 
-	Glib::init(); // need to use Gio functions before app is started
-	app_base_path_=etl::dirname(basepath);
+	Gtk::Application::run(argc, argv);
+}
+
+App::App() :
+	Gtk::Application("org.synfig.SynfigStudio", Gio::APPLICATION_HANDLES_OPEN)
+{
+	main_window = nullptr;
+	dock_manager = nullptr;
+}
+
+App::~App()
+{
+	delete dock_manager;
+	delete main_window;
+}
+
+void
+App::on_startup()
+{
+	Gtk::Application::on_startup();
 
 	// Set ui language
 	load_language_settings();
@@ -1429,7 +1452,7 @@ void App::init(const synfig::String& basepath, int *argc, char ***argv)
 	SuperCallback studio_init_cb(splash_screen.get_callback(),9000,10000,10000);
 
 	// Initialize the Synfig library
-	try { synfigapp_main=etl::smart_ptr<synfigapp::Main>(new synfigapp::Main(basepath,&synfig_init_cb)); }
+	try { synfigapp_main=etl::smart_ptr<synfigapp::Main>(new synfigapp::Main(app_base_path_,&synfig_init_cb)); }
 	catch(std::runtime_error &x)
 	{
 		get_ui_interface()->error(strprintf("%s\n\n%s", _("Failed to initialize synfig!"), x.what()));
@@ -1678,22 +1701,6 @@ void App::init(const synfig::String& basepath, int *argc, char ***argv)
 			splash_screen.show();
 		}
 
-		// Look for any files given on the command line,
-		// and load them if found.
-		for(;*argc>=1;(*argc)--)
-			if((*argv)[*argc] && (*argv)[*argc][0]!='-')
-			{
-				studio_init_cb.task(_("Loading files..."));
-				splash_screen.hide();
-				open((*argv)[*argc]);
-				opened_any = true;
-				splash_screen.show();
-			}
-
-		// if no file was specified to be opened, create a new document to help new users get started more easily
-		if (!opened_any && !getenv("SYNFIG_DISABLE_AUTOMATIC_DOCUMENT_CREATION"))
-			new_instance();
-
 		studio_init_cb.task(_("Done."));
 		studio_init_cb.amount_complete(10000,10000);
 
@@ -1706,9 +1713,53 @@ void App::init(const synfig::String& basepath, int *argc, char ***argv)
 		// * https://synfig.org/forums/viewtopic.php?f=15&t=1062
 		dock_manager->show_all_dock_dialogs();
 
-		main_window->present();
+		// Load sound effects
+		sound_render_done = new SoundProcessor();
+		sound_render_done->addSound(
+					SoundProcessor::PlayOptions(),
+					SoundProcessor::Sound(ResourceHelper::get_sound_path("renderdone.wav")));
 
-		splash_screen.hide();
+		App::dock_info_ = dock_info;
+	}
+	catch(String &x)
+	{
+		get_ui_interface()->error(_("Unknown exception caught when constructing App.\nThis software may be unstable.") + String("\n\n") + x);
+	}
+	catch(const std::runtime_error& re)	{
+		// specific handling for runtime_error
+		get_ui_interface()->error(std::string("Runtime error: ") + re.what());
+		std::cerr << "Runtime error: " << re.what() << std::endl;
+	}
+	catch(const std::exception& ex)	{
+		// specific handling for all exceptions extending std::exception, except
+		// std::runtime_error which is handled explicitly
+		get_ui_interface()->error(std::string("Exception: ") + ex.what());
+		std::cerr << "Error occurred: " << ex.what() << std::endl;
+	}
+	catch(...)
+	{
+		get_ui_interface()->error(_("Unknown exception caught when constructing App.\nThis software may be unstable."));
+	}
+
+	// FIXME(rodolforg): Gtk::Application quits when all windows are hidden/closed
+	// DockManager::read_widget(std::string &x) hides MainWindow and
+	// it would make App quit (no Window added to App).
+	// Application::add_window() connects signal_hide() 'to check if App should quit'.
+	// Window::set_application does not connect it.
+	main_window->set_application(instance());
+//	add_window(*main_window);
+
+	splash_screen.hide();
+}
+
+void
+App::on_activate()
+{
+	Gtk::Application::on_activate();
+
+	// if no file was specified to be opened, create a new document to help new users get started more easily
+	if (instance_list.empty())
+		new_instance();
 
 		String message;
 		String details;
@@ -1738,40 +1789,14 @@ void App::init(const synfig::String& basepath, int *argc, char ***argv)
 					message,
 					details,
 					_("Got it"));
-	}
-	catch(String &x)
-	{
-		get_ui_interface()->error(_("Unknown exception caught when constructing App.\nThis software may be unstable.") + String("\n\n") + x);
-	}
-	catch(const std::runtime_error& re)	{
-		// specific handling for runtime_error
-		get_ui_interface()->error(std::string("Runtime error: ") + re.what());
-		std::cerr << "Runtime error: " << re.what() << std::endl;
-	}
-	catch(const std::exception& ex)	{
-		// specific handling for all exceptions extending std::exception, except
-		// std::runtime_error which is handled explicitly
-		get_ui_interface()->error(std::string("Exception: ") + ex.what());
-		std::cerr << "Error occurred: " << ex.what() << std::endl;
-	}
-	catch(...)
-	{
-		get_ui_interface()->error(_("Unknown exception caught when constructing App.\nThis software may be unstable."));
-	}
 
-	// Load sound effects
-	sound_render_done = new SoundProcessor();
-	sound_render_done->addSound(
-		SoundProcessor::PlayOptions(),
-		SoundProcessor::Sound(ResourceHelper::get_sound_path("renderdone.wav")));
-
-	App::dock_info_ = dock_info;
-	add_window(*main_window);
+	main_window->present();
 }
 
 StateManager* App::get_state_manager() { return state_manager; }
 
-App::~App()
+void
+App::on_shutdown()
 {
 	shutdown_in_progress=true;
 
@@ -1794,10 +1819,6 @@ App::~App()
 
 	delete about;
 
-	main_window->hide();
-
-	delete main_window;
-
 	delete dialog_setup;
 
 	delete dialog_gradient;
@@ -1806,7 +1827,6 @@ App::~App()
 
 	delete dialog_input;
 
-	delete dock_manager;
 
 	delete workspaces;
 
@@ -1814,6 +1834,19 @@ App::~App()
 
 	if (sound_render_done) delete sound_render_done;
 	sound_render_done = nullptr;
+
+	// FIXME(rodolforg): main_window->hide() would be preferable
+	// However, see main_window->set_application() comments on on_startup()
+	remove_window(*main_window);
+//	main_window->hide();
+}
+
+void
+App::on_open(const Gio::Application::type_vec_files& files, const Glib::ustring& hint)
+{
+	for (auto file : files) {
+		open(file->get_path());
+	}
 }
 
 synfig::String
@@ -2318,10 +2351,8 @@ App::quit()
 			return;
 	process_all_events();
 
-	// Gtk::Main::quit();
-	App::instance()->remove_window(*main_window);
-
 	get_ui_interface()->task(_("Quit Request sent"));
+	App::instance()->on_shutdown();
 }
 
 void
@@ -4396,12 +4427,12 @@ studio::App::setup_changed()
 void
 studio::App::process_all_events(long unsigned int us)
 {
-	/*Glib::usleep(us);
-	while(studio::App::events_pending()) {
-		while(studio::App::events_pending())
-			studio::App::iteration(false);
+	Glib::usleep(us);
+	while(gtk_events_pending()) {
+		while(gtk_events_pending())
+			gtk_main_iteration_do(false);
 		Glib::usleep(us);
-	}*/
+	}
 }
 
 bool

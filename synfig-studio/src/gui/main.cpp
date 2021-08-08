@@ -66,16 +66,6 @@ int main(int argc, char **argv)
 {
 
 #ifdef _WIN32
-	// to be able to open files whose name is not latin (eg. arabic)
-	class ArgVGuard {
-		char **modified_argv;
-	public:
-		ArgVGuard(char ***argv) { modified_argv = *argv = g_win32_get_command_line(); }
-		~ArgVGuard() { g_strfreev(modified_argv); }
-	} argv_guard(&argv);
- #endif
-
-#ifdef _WIN32
 	if (consoleOptionEnabled(argc, argv))
 	{
 		redirectIOToConsole();
@@ -101,43 +91,22 @@ int main(int argc, char **argv)
 	textdomain(GETTEXT_PACKAGE);
 #endif
 	
-	{
-		SmartFILE file(IPC::make_connection());
-		if(file)
-		{
-			cout << endl;
-			cout << "   " << _("synfig studio is already running") << endl << endl;
-			cout << "   " << _("the existing process will be used") << endl << endl;
-
-			// Hey, another copy of us is open!
-			// don't bother opening us, just go ahead and
-			// tell the other copy to load it all up
-			if (argc>1)
-				fprintf(file.get(),"F\n");
-
-			while(--argc)
-				if((argv)[argc] && (argv)[argc][0]!='-')
-					fprintf(file.get(),"O %s\n",etl::absolute_path((argv)[argc]).c_str());
-
-			fprintf(file.get(),"F\n");
-
-			return 0;
-		}
-	}
 
 	cout << endl;
 	cout << "   " << _("synfig studio -- starting up application...") << endl << endl;
 
 	SYNFIG_EXCEPTION_GUARD_BEGIN()
 	
-	// studio::App app(etl::dirname(binary_path), &argc, &argv);
 	Glib::RefPtr<studio::App> app = studio::App::instance();
 
-	app->signal_startup().connect([app, binary_path, argc, argv]() {
-		app->init(etl::dirname(binary_path), const_cast<int *>(&argc), const_cast<char ***>(&argv));
-	});
+	app->run(argc, argv);
 
-	app->run();
+	if (app->is_remote()) {
+		cout << endl;
+		cout << "   " << _("synfig studio is already running") << endl << endl;
+		cout << "   " << _("the existing process will be used") << endl << endl;
+		return 0;
+	}
 
 	std::cerr<<"Application appears to have terminated successfully"<<std::endl;
 

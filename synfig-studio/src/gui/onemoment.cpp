@@ -86,7 +86,8 @@ OneMoment::OneMoment()//:
 
 	label->set_size_request(400,60);
 
-	wnd->set_transient_for((Gtk::Window&)(*App::main_window));
+	if (App::main_window)
+		wnd->set_transient_for((Gtk::Window&)(*App::main_window));
 	
 	// show everything off
 	wnd->show_all();
