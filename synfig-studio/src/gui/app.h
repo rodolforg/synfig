@@ -111,8 +111,6 @@ class Dock_Navigator;
 class Dock_LayerGroups;
 class Dock_SoundWave;
 
-class IPC;
-
 class Module;
 
 class StateManager;
@@ -164,8 +162,6 @@ private:
 	static Dock_History *dock_history;
 	static Dock_Canvases *dock_canvases;
 	static Dock_LayerGroups *dock_layer_groups;
-
-	static IPC *ipc;
 */
 
 	etl::smart_ptr<synfigapp::Main> synfigapp_main;

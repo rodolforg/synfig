@@ -142,9 +142,9 @@ AC_ARG_WITH(userdir,[
 
 # -- H E A D E R S --------------------------------------------
 
-# Headers for gui/ipc.cpp and gui/app.cpp
-AC_CHECK_HEADERS([unistd.h fcntl.h])
-AC_CHECK_HEADERS([sys/types.h sys/stat.h sys/errno.h])
+# Headers for gui/app.cpp
+AC_CHECK_HEADERS([fcntl.h])
+AC_CHECK_HEADERS([sys/stat.h sys/errno.h])
 
 # -- T Y P E S & S T R U C T S --------------------------------
 

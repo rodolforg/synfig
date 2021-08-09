@@ -34,7 +34,6 @@
 
 #include <gui/app.h>
 #include <gui/exception_guard.h>
-#include <gui/ipc.h>
 #include <gui/localization.h>
 
 #ifdef _WIN32

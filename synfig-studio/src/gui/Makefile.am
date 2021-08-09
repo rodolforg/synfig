@@ -54,7 +54,6 @@ OTHER_HH = \
 	localization.h \
 	iconcontroller.h \
 	instance.h \
-	ipc.h \
 	keymapsettings.h \
 	onemoment.h \
 	pluginmanager.h \
@@ -87,7 +86,6 @@ OTHER_CC = \
 	duckmatic.cpp \
 	iconcontroller.cpp \
 	instance.cpp \
-	ipc.cpp \
 	keymapsettings.cpp \
 	onemoment.cpp \
 	pluginmanager.cpp \
