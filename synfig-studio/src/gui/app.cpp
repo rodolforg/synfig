@@ -1357,7 +1357,11 @@ void
 App::run(int argc, char** argv)
 {
 	if (argc > 0) {
-		String binary_path = synfig::get_binary_path(String(argv[0]));
+#if _WIN32
+		auto argv_ = std::unique_ptr<char**, void(char **)>(g_win32_get_command_line(argv), g_strfreev);
+		argv = argv_;
+#endif
+		String binary_path = synfig::get_binary_path(argv[0]);
 		app_base_path_ = etl::dirname(binary_path);
 	}
 
