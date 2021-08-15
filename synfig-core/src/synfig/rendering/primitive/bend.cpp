@@ -122,18 +122,15 @@ namespace {
 				}
 			} else
 			if (point.mode == Bend::CORNER) {
-				Vector pp = (tn0 + tn1).perp();
-				Real a = (tn0 - tn1).mag_squared();
-				Real b = pp.mag_squared();
-				Real c = 1/sqrt(b);
-				pp *= std::min(Real(2), (a + b)*c*0.5)*c*radius;
-				if (out) {
-					touch(dst, dst_move_flag, center + pp);
-					dst.line_to(center + p);
+				Real k = ((p1[1] - p0[1])*tn1[0] - (p1[0] - p0[0])*tn1[1])/(tn0[1]*tn1[0] - tn0[0]*tn1[1]);
+				Vector q = p0 + tn0*k;
+				if (!out) {
+					touch(dst, dst_move_flag, center + p0);
+					dst.line_to(center + q);
 					dst.remove_collapsed_tail();
 				} else {
-					touch(dst, dst_move_flag, center + p);
-					dst.line_to(center + pp);
+					touch(dst, dst_move_flag, center + q);
+					dst.line_to(center + p1);
 					dst.remove_collapsed_tail();
 				}
 			}
