@@ -75,21 +75,15 @@ software::Contour::render_polyspan(
 	sp.set_value(color);
 	cover = 0;
 
+	auto& pen = simple_fill ? sp : p;
+
 	if (cur_mark == end_mark)
 	{
 		// no marks at all
 		if (invert)
 		{
-			if (simple_fill)
-			{
-				sp.move_to(window.minx, window.miny);
-				sp.put_block(window.maxy - window.miny, window.maxx - window.minx);
-			}
-			else
-			{
-				p.move_to(window.minx, window.miny);
-				p.put_block(window.maxy - window.miny, window.maxx - window.minx);
-			}
+			pen.move_to(window.minx, window.miny);
+			pen.put_block(window.maxy - window.miny, window.maxx - window.minx);
 		}
 		return;
 	}
@@ -97,34 +91,17 @@ software::Contour::render_polyspan(
 	// fill initial rect / line
 	if (invert)
 	{
-		if (simple_fill)
-		{
-			// fill all the area above the first vertex
-			sp.move_to(window.minx, window.miny);
-			y = window.miny;
-			int l = window.maxx - window.minx;
+		// fill all the area above the first vertex
+		pen.move_to(window.minx, window.miny);
+		y = window.miny;
+		int l = window.maxx - window.minx;
 
-			sp.put_block(cur_mark->y - window.miny, l);
+		pen.put_block(cur_mark->y - window.miny, l);
 
-			// fill the area to the left of the first vertex on that line
-			l = cur_mark->x - window.minx;
-			sp.move_to(window.minx, cur_mark->y);
-			if (l) sp.put_hline(l);
-		}
-		else
-		{
-			// fill all the area above the first vertex
-			p.move_to(window.minx, window.miny);
-			y = window.miny;
-			int l = window.maxx - window.minx;
-
-			p.put_block(cur_mark->y - window.miny, l);
-
-			// fill the area to the left of the first vertex on that line
-			l = cur_mark->x - window.minx;
-			p.move_to(window.minx, cur_mark->y);
-			if (l) p.put_hline(l);
-		}
+		// fill the area to the left of the first vertex on that line
+		l = cur_mark->x - window.minx;
+		pen.move_to(window.minx, cur_mark->y);
+		if (l) pen.put_hline(l);
 	}
 
 	while(true)
@@ -176,41 +153,20 @@ software::Contour::render_polyspan(
 			{
 				// fill the area at the end of the line
 				if (simple_fill)
-				{
 					sp.move_to(p);
-					sp.put_hline(window.maxx - x);
-				}
-				else
-				{
-					p.put_hline(window.maxx - x);
-				}
+
+				pen.put_hline(window.maxx - x);
 
 				// fill any empty line until next mark
 				if (++y != cur_mark->y)
 				{
-					if (simple_fill)
-					{
-						sp.move_to(window.minx, y);
-						sp.put_block(cur_mark->y - y, window.maxx - window.minx);
-					}
-					else
-					{
-						p.move_to(window.minx, y);
-						p.put_block(cur_mark->y - y, window.maxx - window.minx);
-					}
+					pen.move_to(window.minx, y);
+					pen.put_block(cur_mark->y - y, window.maxx - window.minx);
 				}
 
 				// fill area at the beginning of the next line
-				if (simple_fill)
-				{
-					sp.move_to(window.minx, cur_mark->y);
-					sp.put_hline(cur_mark->x - window.minx);
-				}
-				else
-				{
-					p.move_to(window.minx, cur_mark->y);
-					p.put_hline(cur_mark->x - window.minx);
-				}
+				pen.move_to(window.minx, cur_mark->y);
+				pen.put_hline(cur_mark->x - window.minx);
 			}
 
 			cover = 0;
@@ -225,15 +181,14 @@ software::Contour::render_polyspan(
 			if (alpha >= .5)
 			{
 				if (simple_fill)
-				{
 					sp.move_to(p);
-					sp.put_hline(cur_mark->x - x);
+
+				pen.put_hline(cur_mark->x - x);
+
+				/*
+				if (simple_fill)
 					p.move_to(sp);
-				}
-				else
-				{
-					p.put_hline(cur_mark->x - x);
-				}
+				*/
 			}
 
 			/*
@@ -253,25 +208,14 @@ software::Contour::render_polyspan(
 	if (invert)
 	{
 		if (simple_fill)
-		{
 			sp.move_to(p);
 
-			//fill the area at the end of the line
-			sp.put_hline(window.maxx - x);
+		//fill the area at the end of the line
+		pen.put_hline(window.maxx - x);
 
-			//fill area at the beginning of the next line
-			sp.move_to(window.minx, y+1);
-			sp.put_block(window.maxy - y - 1, window.maxx - window.minx);
-		}
-		else
-		{
-			//fill the area at the end of the line
-			p.put_hline(window.maxx - x);
-
-			//fill area at the beginning of the next line
-			p.move_to(window.minx, y+1);
-			p.put_block(window.maxy - y - 1, window.maxx - window.minx);
-		}
+		//fill area at the beginning of the next line
+		pen.move_to(window.minx, y+1);
+		pen.put_block(window.maxy - y - 1, window.maxx - window.minx);
 	}
 }
 
