@@ -183,6 +183,8 @@ Action::ValueDescBoneLink::prepare()
 	if (!bone_value_node)
 		throw Error(Error::TYPE_NOTREADY);
 
+	std::vector<ValueDesc> curated_value_desc_list;
+
 	for (std::list<ValueDesc>::iterator iter = value_desc_list.begin(); iter != value_desc_list.end(); ++iter)
 	{
 		ValueDesc& value_desc(*iter);
@@ -234,6 +236,12 @@ Action::ValueDescBoneLink::prepare()
 				}
 			}
 		}
+		curated_value_desc_list.push_back(value_desc);
+	}
+
+	if (curated_value_desc_list.empty())
+		throw Error(Error::TYPE_BADPARAM, _("Nothing to be linked to the bone"));
+
 		/*
 		if (value_desc.is_value_node())
 		{
@@ -254,7 +262,8 @@ Action::ValueDescBoneLink::prepare()
 			}
 		}
 		*/
-
+	for (const ValueDesc& value_desc : curated_value_desc_list)
+	{
 		// create new BoneLink
 		ValueNode_BoneLink::Handle bone_link_node = ValueNode_BoneLink::create(value_desc.get_value_type());
 		bone_link_node->set_link("bone", ValueNode_Const::create(ValueBase(bone_value_node)));
