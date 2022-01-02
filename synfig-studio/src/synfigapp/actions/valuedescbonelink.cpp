@@ -192,6 +192,7 @@ Action::ValueDescBoneLink::prepare()
 		if (value_desc.parent_is_value_node() && bone_value_node == value_desc.get_parent_value_node())
 			continue;
 
+		// Check whether user is trying to link to 'origin' instead of 'transformation', if both layer parameters are available
 		if (value_desc.parent_is_layer() && value_desc.get_param_name() == "origin") {
 			Layer::ConstHandle layer = value_desc.get_layer();
 			bool has_transformation = layer->get_param("transformation").is_valid()
@@ -214,6 +215,25 @@ Action::ValueDescBoneLink::prepare()
 			}
 		}
 
+		// Check whether user is trying to link to an animated value
+		if (auto valuenode = value_desc.get_value_node()) {
+			if (dynamic_cast<ValueNode_AnimatedInterface*>(valuenode.get())) {
+				if ( get_canvas_interface()
+				  && get_canvas_interface()->get_ui_interface()
+				  && UIInterface::RESPONSE_OK != get_canvas_interface()->get_ui_interface()->confirmation(
+						 _("Linking Bone To Animated Parameter"),
+						 etl::strprintf(_("You are trying to link to a bone something that is already animated:\n"
+										  "%s\n\n"
+										  "If you do so, its current animation will be lost.\n\nAre you sure?"),
+							 value_desc.get_description().c_str()),
+						 _("Yes"),
+						 _("No"),
+						 synfigapp::UIInterface::RESPONSE_CANCEL ))
+				{
+					continue;
+				}
+			}
+		}
 		/*
 		if (value_desc.is_value_node())
 		{
