@@ -49,8 +49,9 @@ using namespace synfig;
 
 /* === M E T H O D S ======================================================= */
 
-zstreambuf::zstreambuf(std::streambuf *buf):
+zstreambuf::zstreambuf(std::streambuf *buf, bool has_zlib_header):
 	buf_(buf),
+	has_zlib_header(has_zlib_header),
 	inflate_initialized(false),
 	deflate_initialized(false),
 	deflate_stream_{}
@@ -162,8 +163,8 @@ bool zstreambuf::inflate_buf()
     if (!inflate_initialized)
     {
     	memset(&inflate_stream_, 0, sizeof(inflate_stream_));
-    	if (Z_OK != inflateInit2(&inflate_stream_, option_window_bits)) return false;
-    	inflate_initialized = true;
+		if (Z_OK != inflateInit2(&inflate_stream_, has_zlib_header ? option_window_bits : -MAX_WBITS)) return false;
+		inflate_initialized = true;
     }
 
     // read and inflate new chunk of data

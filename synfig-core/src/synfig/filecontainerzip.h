@@ -61,6 +61,10 @@ namespace synfig
 		};
 
 		typedef long long int file_size_t;
+		enum ContainerZipType {
+			PKWARE_ZIP, // traditional zip archive format
+			SYNFIG_HISTORY_CONTAINER, // .sfg
+		};
 
 		struct HistoryRecord {
 			file_size_t prev_storage_size;
@@ -102,6 +106,7 @@ namespace synfig
 		FileMap::iterator file_;
 		file_size_t file_processed_size_;
 		bool changed_;
+		ContainerZipType zip_type;
 
 		static unsigned int crc32(unsigned int previous_crc, const void *buffer, size_t size);
 		static String encode_history(const HistoryRecord &history_record);

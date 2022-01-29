@@ -63,6 +63,7 @@ namespace synfig {
 
 	private:
 		std::streambuf *buf_;
+		bool has_zlib_header;
 
 		bool inflate_initialized;
 		z_stream inflate_stream_;
@@ -76,8 +77,10 @@ namespace synfig {
 		bool deflate_buf(bool flush);
 
 	public:
-		explicit zstreambuf(std::streambuf *buf);
+		explicit zstreambuf(std::streambuf *buf, bool has_zlib_header);
 		virtual ~zstreambuf();
+
+		bool get_has_zlib_header() const { return has_zlib_header; }
 
 	protected:
 		virtual int sync();
@@ -106,10 +109,10 @@ namespace synfig {
 			{ return (size_t)istream_.read((char*)buffer, size).gcount(); }
 
 	public:
-		ZReadStream(FileSystem::ReadStream::Handle stream):
+		ZReadStream(FileSystem::ReadStream::Handle stream, bool with_zlib_header = true):
 			FileSystem::ReadStream(stream->file_system()),
 			stream_(stream),
-			buf_(stream_->rdbuf()),
+			buf_(stream_->rdbuf(), with_zlib_header),
 			istream_(&buf_)
 		{ }
 
@@ -138,7 +141,7 @@ namespace synfig {
 		ZWriteStream(FileSystem::WriteStream::Handle stream):
 			FileSystem::WriteStream(stream->file_system()),
 			stream_(stream),
-			buf_(stream_->rdbuf()),
+			buf_(stream_->rdbuf(), true),
 			ostream_(&buf_)
 		{ }
 	};

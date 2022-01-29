@@ -404,6 +404,10 @@ bool FileContainerZip::create(const String &container_filename)
 
 bool FileContainerZip::open_from_history(const String &container_filename, file_size_t truncate_storage_size) {
 	if (is_opened()) return false;
+	if (filename_extension(container_filename) == "sfg")
+		zip_type = SYNFIG_HISTORY_CONTAINER;
+	else
+		zip_type = PKWARE_ZIP;
 	FILE *f = g_fopen(fix_slashes(container_filename).c_str(), "r+b");
 
 	if (f == NULL) return false;
@@ -847,7 +851,7 @@ FileSystem::ReadStream::Handle FileContainerZip::get_read_stream(const String &f
 	 && file_is_opened_for_read()
 	 && !file_reading_whole_container_
 	 && file_->second.compression > 0)
-		return new ZReadStream(stream);
+		return new ZReadStream(stream, zip_type == SYNFIG_HISTORY_CONTAINER);
 	return stream;
 }
 
