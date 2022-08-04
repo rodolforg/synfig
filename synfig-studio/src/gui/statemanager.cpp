@@ -35,10 +35,6 @@
 
 #include "statemanager.h"
 
-#include <gtkmm/action.h>
-#include <gtkmm/actiongroup.h>
-#include <gtkmm/stock.h>
-
 #include <gui/app.h>
 #include <gui/docks/dock_toolbox.h>
 
@@ -57,19 +53,12 @@ using namespace studio;
 
 /* === M E T H O D S ======================================================= */
 
-StateManager::StateManager():
-	state_group(Gtk::ActionGroup::create("action_group_state_manager")),
-	merge_id(App::ui_manager()->new_merge_id())
+StateManager::StateManager()
 {
-	App::ui_manager()->insert_action_group(get_action_group());
 }
 
 StateManager::~StateManager()
 {
-	App::ui_manager()->remove_ui(merge_id);
-
-	for(;!merge_id_list.empty();merge_id_list.pop_back())
-		App::ui_manager()->remove_ui(merge_id_list.back());
 }
 
 void
@@ -79,44 +68,19 @@ StateManager::change_state_(const Smach::state_base *state)
 }
 
 void
-StateManager::add_state(const Smach::state_base *state)
+StateManager::change_state_to(const std::string& state)
+{
+	App::dock_toolbox->change_state(state, true);
+}
+
+void
+StateManager::add_state(const Smach::state_base* state, const String& local_name)
 {
 	String name(state->get_name());
 
-	Gtk::StockItem stock_item;
-	Gtk::Stock::lookup(Gtk::StockID("synfig-"+name),stock_item);
-
-	Glib::RefPtr<Gtk::Action> action(
-		Gtk::Action::create(
-			"state-"+name,
-			stock_item.get_stock_id(),
-			stock_item.get_label(),
-			stock_item.get_label()
-		)
-	);
-	/*action->set_sensitive(false);*/
-	state_group->add(action);
-
-	action->signal_activate().connect(
-		sigc::bind(
-			sigc::mem_fun(*this,&studio::StateManager::change_state_),
-			state
-		)
-	);
-
-	String uid_def;
-	uid_def = "<ui><popup action='menu-main'><menu action='menu-toolbox'><menuitem action='state-"+name+"' /></menu></popup></ui>";
-	merge_id_list.push_back(App::ui_manager()->add_ui_from_string(uid_def));
-	uid_def = "<ui><menubar action='menubar-main'><menu action='menu-toolbox'><menuitem action='state-"+name+"' /></menu></menubar></ui>";
-	merge_id_list.push_back(App::ui_manager()->add_ui_from_string(uid_def));
-
-	App::ui_manager()->ensure_update();
-
-	App::dock_toolbox->add_state(state);
-}
-
-Glib::RefPtr<Gtk::ActionGroup>
-StateManager::get_action_group()
-{
-	return state_group;
+	App::instance()->add_action("set-tool-" + name, sigc::bind(
+												sigc::mem_fun(*this, &studio::StateManager::change_state_),
+												state
+											));
+	App::dock_toolbox->add_state(state, local_name);
 }

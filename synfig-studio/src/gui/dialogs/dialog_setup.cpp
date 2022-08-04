@@ -80,6 +80,13 @@ enum ShortcutsColumns{
 
 /* === P R O C E D U R E S ================================================= */
 
+static bool
+is_new_action_path(const std::string& accel_path)
+{
+	const std::string accel_path_preffix = "<Actions>";
+	return accel_path.substr(0, accel_path_preffix.length()) != accel_path_preffix;
+}
+
 /* === M E T H O D S ======================================================= */
 
 Dialog_Setup::Dialog_Setup(Gtk::Window& parent):
@@ -525,7 +532,15 @@ Dialog_Setup::create_shortcuts_page(Dialog_Template::PageInfo pi)
 	for (const auto& pair : action_map) {
 		const std::string &action_full_path = pair.first;
 
-		const auto separator_pos = action_full_path.find_last_of('/');
+		const bool new_action_class = is_new_action_path(action_full_path);
+
+		auto separator_pos = action_full_path.find_last_of('/');
+
+		if (separator_pos == std::string::npos) {
+			separator_pos = action_full_path.find_last_of('.');
+			if (separator_pos == std::string::npos)
+				continue;
+		}
 
 		// New section?
 		if (action_full_path.compare(0, current_section_name.size(), current_section_name) != 0) {
@@ -541,8 +556,15 @@ Dialog_Setup::create_shortcuts_page(Dialog_Template::PageInfo pi)
 		Gtk::TreeRow row = *model->append(current_section_row.children());
 
 		Gtk::AccelKey accel;
-		if (!Gtk::AccelMap::lookup_entry(action_full_path, accel))
-			accel = Gtk::AccelKey(pair.second, action_full_path);
+
+		if (new_action_class) {
+			auto accels = App::instance()->get_accels_for_action(action_full_path);
+			if (!accels.empty())
+				accel = Gtk::AccelKey(accels.front());
+		} else {
+			if (!Gtk::AccelMap::lookup_entry(action_full_path, accel))
+				accel = Gtk::AccelKey(pair.second, action_full_path);
+		}
 
 		row.set_value(action_name_col, action_full_path);
 		row.set_value(action_key_col, accel.get_key());
@@ -910,21 +932,29 @@ Dialog_Setup::on_restore_pressed()
 			for (auto& row : section_row.children()) {
 				Gtk::AccelKey accel;
 
-				std::string accel_path;
-				row.get_value(SHORTCUT_COLUMN_ID_ACTION_NAME, accel_path);
+				std::string action_path;
+				row.get_value(SHORTCUT_COLUMN_ID_ACTION_NAME, action_path);
+
+				const bool new_action_class = is_new_action_path(action_path);
 
 				bool found = false;
 				for (auto it = default_accel_map.begin(); it != default_accel_map.end(); ++it) {
-					if (it->second == accel_path) {
+					if (it->second == action_path) {
 						Gtk::AccelKey accel(it->first);
-						Gtk::AccelMap::change_entry(accel_path, accel.get_key(), accel.get_mod(), true);
+						if (new_action_class)
+							App::instance()->set_accel_for_action(action_path, accel.get_abbrev());
+						else
+							Gtk::AccelMap::change_entry(action_path, accel.get_key(), accel.get_mod(), true);
 						found = true;
 						break;
 					}
 				}
 
 				if (!found) {
-					Gtk::AccelMap::change_entry(accel_path, 0, Gdk::ModifierType(0), true);
+					if (new_action_class)
+						App::instance()->set_accel_for_action(action_path, "");
+					else
+						Gtk::AccelMap::change_entry(action_path, 0, Gdk::ModifierType(0), true);
 				}
 			}
 		}
@@ -1081,16 +1111,19 @@ Dialog_Setup::on_apply_pressed()
 	auto accel_rows = treeview_accels->get_model()->children();
 	for (const auto& section_row : accel_rows) {
 		for (auto& row : section_row.children()) {
-			Gtk::AccelKey accel;
 
-			std::string accel_path;
-			row.get_value(SHORTCUT_COLUMN_ID_ACTION_NAME, accel_path);
+			std::string action_path;
+			row.get_value(SHORTCUT_COLUMN_ID_ACTION_NAME, action_path);
 			guint accel_key;
 			row.get_value(SHORTCUT_COLUMN_ID_ACTION_KEY, accel_key);
 			Gdk::ModifierType accel_mod;
 			row.get_value(SHORTCUT_COLUMN_ID_ACTION_MODS, accel_mod);
 
-			Gtk::AccelMap::change_entry(accel_path, accel_key, accel_mod, true);
+			const bool new_action_class = is_new_action_path(action_path);
+			if (new_action_class)
+				App::instance()->set_accel_for_action(action_path, Gtk::AccelKey(accel_key, accel_mod).get_abbrev());
+			else
+				Gtk::AccelMap::change_entry(action_path, accel_key, accel_mod, true);
 		}
 	}
 
@@ -1385,16 +1418,19 @@ Dialog_Setup::refresh()
 			if (!is_action)
 				continue;
 
-			std::string accel_path;
-			row.get_value(SHORTCUT_COLUMN_ID_ACTION_NAME, accel_path);
+			std::string action_path;
+			row.get_value(SHORTCUT_COLUMN_ID_ACTION_NAME, action_path);
 
-			if (Gtk::AccelMap::lookup_entry(accel_path, accel)) {
-				row.set_value(SHORTCUT_COLUMN_ID_ACTION_KEY, accel.get_key());
-				row.set_value(SHORTCUT_COLUMN_ID_ACTION_MODS, accel.get_mod());
+			const bool new_action_class = is_new_action_path(action_path);
+			if (new_action_class) {
+				auto accels = App::instance()->get_accels_for_action(action_path);
+				if (!accels.empty())
+					accel = accels.front();
 			} else {
-				row.set_value(SHORTCUT_COLUMN_ID_ACTION_KEY, 0);
-				row.set_value(SHORTCUT_COLUMN_ID_ACTION_MODS, Gdk::ModifierType(0));
+				Gtk::AccelMap::lookup_entry(action_path, accel);
 			}
+			row.set_value(SHORTCUT_COLUMN_ID_ACTION_KEY, accel.get_key());
+			row.set_value(SHORTCUT_COLUMN_ID_ACTION_MODS, accel.get_mod());
 		}
 	}
 

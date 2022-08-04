@@ -1284,11 +1284,16 @@ DEFINE_ACTION("keyframe-properties", _("Properties"))
 	add_ui_from_string(hidden_ui_info);
 
 	auto default_accel_map = App::get_default_accel_map();
+	const std::string accel_path_preffix = "<Actions>";
 	for (const auto& accel_item : default_accel_map) {
-		Gtk::AccelKey accel_key(accel_item.first, accel_item.second);
-		if (accel_key.get_key() == 0)
-			synfig::warning(_("Invalid accelerator: %s (for action: %s)"), accel_item.first, accel_item.second);
-		Gtk::AccelMap::add_entry(accel_key.get_path(), accel_key.get_key(), accel_key.get_mod());
+		if (std::string(accel_item.second).substr(0, accel_path_preffix.length()) == accel_path_preffix) {
+			Gtk::AccelKey accel_key(accel_item.first, accel_item.second);
+			if (accel_key.get_key() == 0)
+				synfig::warning(_("Invalid accelerator: %s (for action: %s)"), accel_item.first, accel_item.second);
+			Gtk::AccelMap::add_entry(accel_key.get_path(), accel_key.get_key(), accel_key.get_mod());
+		} else {
+			App::instance()->set_accel_for_action(accel_item.second, accel_item.first);
+		}
 	}
 }
 
@@ -1298,26 +1303,26 @@ App::get_default_accel_map()
 	// Add default keyboard accelerators
 	static const std::map<const char*, const char*> default_accel_map = {
 		// Toolbox
-		{"s",             "<Actions>/action_group_state_manager/state-normal"},
-		{"m",             "<Actions>/action_group_state_manager/state-smooth_move"},
-		{"l",             "<Actions>/action_group_state_manager/state-scale"},
-		{"a",             "<Actions>/action_group_state_manager/state-rotate"},
-		{"i",             "<Actions>/action_group_state_manager/state-mirror"},
-		{"e",             "<Actions>/action_group_state_manager/state-circle"},
-		{"r",             "<Actions>/action_group_state_manager/state-rectangle"},
-		{"asterisk",      "<Actions>/action_group_state_manager/state-star"},
-		{"g",             "<Actions>/action_group_state_manager/state-gradient"},
-		{"o",             "<Actions>/action_group_state_manager/state-polygon"},
-		{"b",             "<Actions>/action_group_state_manager/state-bline"},
-		{"n",             "<Actions>/action_group_state_manager/state-bone"},
-		{"t",             "<Actions>/action_group_state_manager/state-text"},
-		{"u",             "<Actions>/action_group_state_manager/state-fill"},
-		{"d",             "<Actions>/action_group_state_manager/state-eyedrop"},
-		{"c",             "<Actions>/action_group_state_manager/state-lasso"},
-		{"z",             "<Actions>/action_group_state_manager/state-zoom"},
-		{"p",             "<Actions>/action_group_state_manager/state-draw"},
-		{"k",             "<Actions>/action_group_state_manager/state-sketch"},
-		{"w",             "<Actions>/action_group_state_manager/state-width"},
+		{"s",             "app.set-tool-normal"},
+		{"m",             "app.set-tool-smooth_move"},
+		{"l",             "app.set-tool-scale"},
+		{"a",             "app.set-tool-rotate"},
+		{"i",             "app.set-tool-mirror"},
+		{"e",             "app.set-tool-circle"},
+		{"r",             "app.set-tool-rectangle"},
+		{"asterisk",      "app.set-tool-star"},
+		{"g",             "app.set-tool-gradient"},
+		{"o",             "app.set-tool-polygon"},
+		{"b",             "app.set-tool-bline"},
+		{"n",             "app.set-tool-bone"},
+		{"t",             "app.set-tool-text"},
+		{"u",             "app.set-tool-fill"},
+		{"d",             "app.set-tool-eyedrop"},
+		{"c",             "app.set-tool-lasso"},
+		{"z",             "app.set-tool-zoom"},
+		{"p",             "app.set-tool-draw"},
+		{"k",             "app.set-tool-sketch"},
+		{"w",             "app.set-tool-width"},
 
 		// Everything else
 		{"<Control>a",              "<Actions>/canvasview/select-all-ducks"},
@@ -1681,35 +1686,35 @@ void App::init(const synfig::String& rootpath)
 		// are displayed in toolbox labels
 		studio_init_cb.task(_("Init Tools..."));
 		/* editing tools */
-		state_manager->add_state(&state_normal);
-		state_manager->add_state(&state_smooth_move);
-		state_manager->add_state(&state_scale);
-		state_manager->add_state(&state_rotate);
-		state_manager->add_state(&state_mirror);
+		state_manager->add_state(&state_normal, _("Transform Tool"));
+		state_manager->add_state(&state_smooth_move, _("SmoothMove Tool"));
+		state_manager->add_state(&state_scale, _("Scale Tool"));
+		state_manager->add_state(&state_rotate, _("Rotate Tool"));
+		state_manager->add_state(&state_mirror, _("Mirror Tool"));
 
 		/* geometry */
-		state_manager->add_state(&state_circle);
-		state_manager->add_state(&state_rectangle);
-		state_manager->add_state(&state_star);
-		if(!getenv("SYNFIG_DISABLE_POLYGON")) state_manager->add_state(&state_polygon); // Enabled - for working without ducks
-		state_manager->add_state(&state_gradient);
+		state_manager->add_state(&state_circle, _("Circle Tool"));
+		state_manager->add_state(&state_rectangle, _("Rectangle Tool"));
+		state_manager->add_state(&state_star, _("Star Tool"));
+		if(!getenv("SYNFIG_DISABLE_POLYGON")) state_manager->add_state(&state_polygon, _("Polygon Tool")); // Enabled - for working without ducks
+		state_manager->add_state(&state_gradient, _("Gradient Tool"));
 
 		/* bline tools */
-		state_manager->add_state(&state_bline);
-		if(!getenv("SYNFIG_DISABLE_DRAW"   )) state_manager->add_state(&state_draw ); // Enabled for now.  Let's see whether they're good enough yet.
-                state_manager->add_state(&state_lasso); // Enabled for now.  Let's see whether they're good enough yet.
-		if(!getenv("SYNFIG_DISABLE_WIDTH"  )) state_manager->add_state(&state_width); // Enabled since 0.61.09
-		state_manager->add_state(&state_fill);
-		state_manager->add_state(&state_eyedrop);
+		state_manager->add_state(&state_bline, _("Spline Tool"));
+		if(!getenv("SYNFIG_DISABLE_DRAW"   )) state_manager->add_state(&state_draw, _("Draw Tool")); // Enabled for now.  Let's see whether they're good enough yet.
+		state_manager->add_state(&state_lasso, _("Cutout Tool")); // Enabled for now.  Let's see whether they're good enough yet.
+		if(!getenv("SYNFIG_DISABLE_WIDTH"  )) state_manager->add_state(&state_width, _("Width Tool")); // Enabled since 0.61.09
+		state_manager->add_state(&state_fill, _("Fill Tool"));
+		state_manager->add_state(&state_eyedrop, _("Eyedrop Tool"));
 
 		/* skeleton tool*/
-		state_manager->add_state(&state_bone);
+		state_manager->add_state(&state_bone, _("Skeleton Tool"));
 
 		/* other */
-		state_manager->add_state(&state_text);
-		if(!getenv("SYNFIG_DISABLE_SKETCH" )) state_manager->add_state(&state_sketch);
-		if(!getenv("SYNFIG_DISABLE_BRUSH"  ) && App::enable_experimental_features) state_manager->add_state(&state_brush);
-		state_manager->add_state(&state_zoom);
+		state_manager->add_state(&state_text, _("Text Tool"));
+		if(!getenv("SYNFIG_DISABLE_SKETCH" )) state_manager->add_state(&state_sketch, _("Sketch Tool"));
+		if(!getenv("SYNFIG_DISABLE_BRUSH"  ) && App::enable_experimental_features) state_manager->add_state(&state_brush, _("Brush Tool"));
+		state_manager->add_state(&state_zoom, _("Zoom Tool"));
 
 
 		device_tracker->load_preferences();

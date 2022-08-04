@@ -39,7 +39,6 @@
 
 #include <gtkmm/accelmap.h>
 #include <gtkmm/paned.h>
-#include <gtkmm/stock.h>
 #include <gtkmm/toolpalette.h>
 
 #include <gui/app.h>
@@ -180,17 +179,16 @@ Dock_Toolbox::set_active_state(const synfig::String& statename)
 void
 Dock_Toolbox::change_state(const synfig::String& statename, bool force)
 {
-	etl::handle<studio::CanvasView> canvas_view(studio::App::get_selected_canvas_view());
+	studio::CanvasView::Handle canvas_view(studio::App::get_selected_canvas_view());
 	if(canvas_view)
 	{
 		if(!force && statename==canvas_view->get_smach().get_state_name())
-		{
 			return;
-		}
 
-		if(state_button_map.count(statename))
+		auto iter = state_button_map.find(statename);
+		if(iter != state_button_map.end())
 		{
-			state_button_map[statename]->activate();
+			iter->second->set_active();
 		}
 		else
 		{
@@ -210,7 +208,7 @@ Dock_Toolbox::change_state_(const Smach::state_base *state)
 	{
 		etl::handle<studio::CanvasView> canvas_view(studio::App::get_selected_canvas_view());
 		if(canvas_view)
-				canvas_view->get_smach().enter(state);
+			canvas_view->get_smach().enter(state);
 		else
 			refresh();
 	}
@@ -229,28 +227,18 @@ Dock_Toolbox::change_state_(const Smach::state_base *state)
  *  \param state a const pointer to Smach::state_base
 */
 void
-Dock_Toolbox::add_state(const Smach::state_base *state)
+Dock_Toolbox::add_state(const Smach::state_base* state, const std::string& local_name)
 {
 	assert(state);
 
 	String name=state->get_name();
 
-	Gtk::StockItem stock_item;
-	Gtk::Stock::lookup(Gtk::StockID("synfig-"+name),stock_item);
+	Gtk::ToggleToolButton* tool_button = manage(new Gtk::ToggleToolButton(local_name));
+	tool_button->set_icon_name("tool_"+name+"_icon-symbolic");
 
-	Gtk::ToggleToolButton *tool_button = manage(new class Gtk::ToggleToolButton(
-		*manage(new Gtk::Image(
-			stock_item.get_stock_id(),
-			Gtk::IconSize::from_name("synfig-small_icon_16x16") )),
-		stock_item.get_label() ));
+	auto accel_path = App::instance()->get_accels_for_action("app.set-tool-" + name);
 
-	Gtk::AccelKey key;
-	//Have a look to global function init_ui_manager() from app.cpp for "accel_path" definition
-	Gtk::AccelMap::lookup_entry ("<Actions>/action_group_state_manager/state-"+name, key);
-	//Gets the, is exist, accelerator representation for labels
-	Glib::ustring accel_path = key.is_null() ? "" : gtk_accelerator_get_label(key.get_key(), GdkModifierType(key.get_mod()));
-	
-	tool_button->set_tooltip_text(stock_item.get_label()+"  "+accel_path);
+	tool_button->set_tooltip_text(local_name + (accel_path.empty() ? "" : "  " + accel_path.front()));
 	tool_button->show();
 
 	tool_item_group->insert(*tool_button);
@@ -258,12 +246,9 @@ Dock_Toolbox::add_state(const Smach::state_base *state)
 
 	state_button_map[name] = tool_button;
 
-	tool_button->signal_clicked().connect(
-		sigc::bind(
-			sigc::mem_fun(*this,&studio::Dock_Toolbox::change_state_),
-			state
-		)
-	);
+	tool_button->signal_clicked().connect([name]() {
+		App::instance()->activate_action("set-tool-" + name);
+	});
 
 	refresh();
 }
