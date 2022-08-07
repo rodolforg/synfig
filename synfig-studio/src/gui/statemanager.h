@@ -52,7 +52,7 @@ public:
 
 	~StateManager();
 
-	void add_state(const Smach::state_base* state, const std::string& local_name);
+	void add_state(const Smach::state_base* state);
 };
 
 }; // END of namespace studio

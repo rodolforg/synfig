@@ -80,7 +80,7 @@ public:
 
 	void refresh();
 
-	void add_state(const Smach::state_base* state, const std::string& local_name);
+	void add_state(const Smach::state_base* state);
 
 	Dock_Toolbox();
 	virtual ~Dock_Toolbox();

@@ -41,6 +41,7 @@
 #include <gtkmm/paned.h>
 #include <gtkmm/toolpalette.h>
 
+#include <gui/actionmanagers/actionmanager.h>
 #include <gui/app.h>
 #include <gui/canvasview.h>
 #include <gui/docks/dialog_tooloptions.h>
@@ -227,18 +228,26 @@ Dock_Toolbox::change_state_(const Smach::state_base *state)
  *  \param state a const pointer to Smach::state_base
 */
 void
-Dock_Toolbox::add_state(const Smach::state_base* state, const std::string& local_name)
+Dock_Toolbox::add_state(const Smach::state_base* state)
 {
 	assert(state);
 
 	String name=state->get_name();
 
-	Gtk::ToggleToolButton* tool_button = manage(new Gtk::ToggleToolButton(local_name));
-	tool_button->set_icon_name("tool_"+name+"_icon-symbolic");
+	const ActionManager::Entry& entry = App::get_action_manager()->get("app.set-tool-" + name);
 
-	auto accel_path = App::instance()->get_accels_for_action("app.set-tool-" + name);
+	Gtk::ToggleToolButton* tool_button = manage(new Gtk::ToggleToolButton(entry.label_));
+	// Sadly not all tool icons (or tool names) follow a convention
+	tool_button->set_icon_name(entry.icon_ + "-symbolic");
 
-	tool_button->set_tooltip_text(local_name + (accel_path.empty() ? "" : "  " + accel_path.front()));
+	// Keeps updating if user changes the shortcut at runtime
+	tool_button->property_has_tooltip() = true;
+	tool_button->signal_query_tooltip().connect([entry](int,int,bool,const Glib::RefPtr<Gtk::Tooltip>& tooltip) -> bool
+	{
+		tooltip->set_text(entry.get_tooltip(App::instance()));
+		return true;
+	});
+
 	tool_button->show();
 
 	tool_item_group->insert(*tool_button);
