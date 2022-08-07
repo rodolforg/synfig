@@ -1695,6 +1695,15 @@ void App::init(const synfig::String& rootpath)
 		if(!getenv("SYNFIG_DISABLE_BRUSH"  ) && App::enable_experimental_features) state_manager->add_state(&state_brush);
 		state_manager->add_state(&state_zoom);
 
+		// Load the user shortcuts/accel keys
+		{
+			UserShortcutList list;
+			if (list.load_from_file(get_config_file("shortcuts"))) {
+				list.apply(App::instance(), *App::get_action_manager());
+			} else {
+				list.restore_to_defaults(App::instance(), *App::get_action_manager());
+			}
+		}
 
 		device_tracker->load_preferences();
 		// If the default bline width is modified before focus a canvas
@@ -2048,6 +2057,13 @@ App::save_accel_map()
 	{
 		synfig::warning("Caught exception when attempting to save accel map settings.");
 	}
+
+	UserShortcutList list;
+	for (const auto& entry : action_manager->get_entries()) {
+		auto accels = App::instance()->get_accels_for_action(entry.name_);
+		list.shortcuts[entry.name_] = accels.empty() ? "" : accels[0];
+	}
+	list.save_to_file(get_config_file("shortcuts"));
 }
 
 void

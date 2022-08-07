@@ -38,7 +38,11 @@
 # include <algorithm>
 # include <set>
 
+# include <glibmm/fileutils.h>
 # include <glibmm/markup.h>
+
+# include <synfig/general.h>
+# include <synfig/string_helper.h>
 
 # include <gui/localization.h>
 #endif
@@ -166,4 +170,145 @@ ActionManager::get_entries_for_group(const std::string& group) const
 			entries.push_back(item.second);
 	}
 	return entries;
+}
+
+bool
+UserShortcutList::load_from_file(const std::string& file)
+{
+	try {
+		std::string contents = Glib::file_get_contents(file);
+		return load_from_string(contents);
+	} catch (const Glib::FileError& error) {
+		synfig::error(_("shortcut file: error loading from file %s: %s"), file.c_str(), error.what().c_str());
+		return false;
+	} catch (...) {
+		return false;
+	}
+}
+
+bool
+UserShortcutList::load_from_string(const std::string& contents)
+{
+	shortcuts.clear();
+
+	std::string::size_type pos = 0;
+	std::string::size_type length = contents.length();
+	unsigned int line_num = 0;
+	while (pos != std::string::npos && pos < length) {
+		auto end = contents.find_first_of("\r\n", pos);
+		std::string line = synfig::trim(contents.substr(pos, end == std::string::npos ? end : end - pos));
+
+		++line_num;
+
+		if (end != std::string::npos)
+			pos = contents.find_first_not_of("\r\n", end);
+		else
+			pos = end;
+
+		if (line.empty() || line.front() == ';')
+			continue;
+
+		if (line.front() != '"') {
+			synfig::error(_("shortcut file: malformed line: #%u: action must be quoted"), line_num);
+			continue;
+		}
+
+		auto action_end = line.find('"', 1);
+		auto shortcut_pos = line.find('"', action_end + 1);
+		auto shortcut_end = line.find('"', shortcut_pos + 1);
+		if (action_end == std::string::npos || shortcut_pos == std::string::npos || shortcut_end == std::string::npos) {
+			synfig::error(_("shortcut file: malformed line: #%u: you must quote both action and shortcut"), line_num);
+			continue;
+		}
+		std::string action, shortcut;
+		action = line.substr(1, action_end - 1);
+		shortcut = line.substr(shortcut_pos + 1, shortcut_end - shortcut_pos - 1);
+		if (action.empty()) {
+			synfig::error(_("shortcut file: malformed line: #%u: empty action name"), line_num);
+			continue;
+		}
+		if (!synfig::trim(line.substr(action_end + 1, shortcut_pos - action_end - 1)).empty()) {
+			synfig::error(_("shortcut file: malformed line: #%u: garbage after action name"), line_num);
+			continue;
+		}
+		if (shortcut_end != line.length() - 1) {
+			synfig::warning(_("shortcut file: malformed line: #%u: garbage after shortcut"), line_num);
+		}
+
+		shortcuts[action] = shortcut;
+
+		if (end != std::string::npos)
+			pos = contents.find_first_not_of("\r\n", end);
+		else
+			pos = end;
+	}
+	return true;
+}
+
+bool
+UserShortcutList::save_to_file(const std::string& file) const
+{
+	try {
+		std::string contents = get_string();
+		Glib::file_set_contents(file, contents);
+		return true;
+	} catch (const Glib::FileError& error) {
+		synfig::error(_("shortcut file: error saving to file %s: %s"), file.c_str(), error.what().c_str());
+		return false;
+	} catch (...) {
+		return false;
+	}
+}
+
+std::string
+UserShortcutList::get_string() const
+{
+	std::string res;
+	for (const auto& item : shortcuts) {
+		res += '"' + item.first + "\" \"" + item.second + "\"\n";
+	}
+	return res;
+}
+
+bool
+UserShortcutList::restore_to_defaults(Glib::RefPtr<Gtk::Application> app, const ActionManager& actions) const
+{
+	if (!app)
+		return false;
+
+	auto action_list = app->list_action_descriptions();
+	for (const auto& item_name : action_list)
+		app->unset_accels_for_action(item_name);
+
+	for (const auto& item : actions.get_entries()) {
+		if (item.accelerators_.empty() || item.accelerators_.front().empty())
+			app->unset_accels_for_action(item.name_);
+		else
+			app->set_accels_for_action(item.name_, item.accelerators_);
+	}
+	return true;
+}
+
+void
+UserShortcutList::apply(Glib::RefPtr<Gtk::Application> app, const ActionManager& actions) const
+{
+	if (!app) {
+		synfig::error(_("shortcut file: internal error: app is null. Please report."));
+		return;
+	}
+
+	auto action_list = app->list_action_descriptions();
+	for (const auto& item_name : action_list)
+		app->unset_accels_for_action(item_name);
+
+	for (const auto& item : shortcuts) {
+		const std::string& action_name = item.first;
+		const std::string& shortcut = item.second;
+		if (action_name.empty())
+			continue;
+		if (shortcut.empty())
+			app->unset_accels_for_action(action_name);
+		else
+			app->set_accels_for_action(action_name, {shortcut});
+	}
 }

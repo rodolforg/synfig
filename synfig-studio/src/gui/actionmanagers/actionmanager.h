@@ -98,6 +98,24 @@ private:
 	std::map<std::string, Entry> book_;
 };
 
+class UserShortcutList
+{
+public:
+	typedef std::map<std::string, Glib::ustring> List;
+
+	bool load_from_file(const std::string& file);
+	bool load_from_string(const std::string& contents);
+
+	bool save_to_file(const std::string& file) const;
+	std::string get_string() const;
+
+	bool restore_to_defaults(Glib::RefPtr<Gtk::Application> app, const ActionManager& actions) const;
+
+	void apply(Glib::RefPtr<Gtk::Application> app, const ActionManager& actions) const;
+
+	List shortcuts;
+};
+
 } // END of namespace studio
 
 /* === E N D =============================================================== */
