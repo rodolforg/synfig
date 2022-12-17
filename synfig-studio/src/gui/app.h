@@ -345,7 +345,7 @@ public:
 	static void save_accel_map();
 	/// \param[out] map Maps AccelKey to Action
 	static const std::map<const char*, const char*>& get_default_accel_map();
-	static void load_file_window_size();
+	static void load_recent_files();
 	static void load_language_settings();
 	static void apply_gtk_settings();
 
