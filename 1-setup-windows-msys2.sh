@@ -48,4 +48,9 @@ $MINGW_PACKAGE_PREFIX-pkgconf \
 $MINGW_PACKAGE_PREFIX-SDL2
 
 # build mlt
+echo "Building mlt package"
 bash "${SCRIPT_DIR}/autobuild/msys2/build_mlt.sh"
+
+# git submodules
+echo "Fetching synfig git submodules"
+git submodule update --init --recursive

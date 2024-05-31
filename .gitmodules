@@ -1,0 +1,4 @@
+[submodule "synfig-studio/images"]
+	path = synfig-studio/images
+	url = https://github.com/rodolforg/synfig-images.git
+	branch = master
