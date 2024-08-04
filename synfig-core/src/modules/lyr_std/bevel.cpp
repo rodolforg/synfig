@@ -277,23 +277,19 @@ public:
 	Token::Handle get_token() const override { return token.handle(); }
 
 	bool run(RunParams&) const override {
-		const Task* task = (this);
-		if (!task)
-			return false;
-		if (!task->is_valid())
+		if (!is_valid())
 			return true;
 		if (!sub_task(0))
 			return false;
 
-		Vector ppu = task->get_pixels_per_unit();
+		Vector ppu = get_pixels_per_unit();
 
-		const synfig::RectInt& target_rect = task->target_rect;
 
 		int tw = target_rect.get_width();
 		LockRead lb(sub_tasks[0]);
 		if (!lb)
 			return false;
-		LockWrite la(task);
+		LockWrite la(this);
 		if (!la)
 			return false;
 
@@ -338,12 +334,11 @@ public:
 		const float u1(offset45[0]/pw), v1(offset45[1]/ph);
 
 		synfig::Surface::pen apen(la->get_surface().get_pen(target_rect.minx, target_rect.miny));
-		synfig::Surface::const_alpha_pen bpen(lb->get_surface().get_pen(target_rect.minx, target_rect.miny));
 
 		int v = halfsizey+std::abs(offset_v);
-		for(int iy = target_rect.miny; iy < target_rect.maxy; ++iy, apen.inc_y(), apen.dec_x(tw), bpen.inc_y(), bpen.dec_x(tw), ++v) {
+		for(int iy = target_rect.miny; iy < target_rect.maxy; ++iy, apen.inc_y(), apen.dec_x(tw), ++v) {
 			int u = halfsizex+std::abs(offset_u);
-			for(int ix = target_rect.minx; ix < target_rect.maxx; ++ix, apen.inc_x(), bpen.inc_x(), ++u) {
+			for(int ix = target_rect.minx; ix < target_rect.maxx; ++ix, apen.inc_x(), ++u) {
 
 				Real alpha(0);
 				Color shade;
