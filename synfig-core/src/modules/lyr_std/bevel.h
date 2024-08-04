@@ -61,7 +61,12 @@ private:
 	ValueBase param_use_luma;
 	//!Parameter: (bool) solid
 	ValueBase param_solid;
-	
+
+	//!Parameter: (bool) cobra engine
+	ValueBase param_cobra;
+	//!Parameter: (bool) overlay only, do not compose
+	ValueBase param_overlay_only;
+
 	Vector	offset;
 	Vector	offset45;
 
@@ -84,6 +89,7 @@ public:
 
 protected:
 	RendDesc get_sub_renddesc_vfunc(const RendDesc& renddesc) const override;
+	rendering::Task::Handle build_composite_fork_task_vfunc(ContextParams, rendering::Task::Handle sub_task) const override;
 	rendering::Task::Handle build_rendering_task_vfunc(Context context) const override;
 }; // END of class Layer_Bevel
 

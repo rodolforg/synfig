@@ -41,13 +41,17 @@
 #include <synfig/blur.h>
 #include <synfig/context.h>
 
+#include "synfig/debug/debugsurface.h"
+
 #endif
+
+/* === U S I N G =========================================================== */
 
 using namespace synfig;
 using namespace modules;
 using namespace lyr_std;
 
-/* -- G L O B A L S --------------------------------------------------------- */
+/* === G L O B A L S ======================================================= */
 
 SYNFIG_LAYER_INIT(Layer_Bevel);
 SYNFIG_LAYER_SET_NAME(Layer_Bevel,"bevel");
@@ -55,7 +59,19 @@ SYNFIG_LAYER_SET_LOCAL_NAME(Layer_Bevel,N_("Bevel"));
 SYNFIG_LAYER_SET_CATEGORY(Layer_Bevel,N_("Stylize"));
 SYNFIG_LAYER_SET_VERSION(Layer_Bevel,"0.2");
 
-/* -- F U N C T I O N S ----------------------------------------------------- */
+/* === P R O C E D U R E S ================================================= */
+
+static void
+save_float_surface(const surface<float>& float_surface, const filesystem::Path& filename, bool overwrite)
+{
+	synfig::Surface	color_surface(float_surface.get_w(), float_surface.get_h());
+	for(int j=0;j<color_surface.get_h();j++)
+		for(int i=0;i<color_surface.get_w();i++)
+			color_surface[j][i] = Color(1,1,1,float_surface[j][i]);
+	debug::DebugSurface::save_to_file(color_surface, filename, overwrite);
+}
+
+/* === M E T H O D S ======================================================= */
 
 Layer_Bevel::Layer_Bevel():
 	Layer_CompositeFork(0.75,Color::BLEND_ONTO),
@@ -69,6 +85,8 @@ Layer_Bevel::Layer_Bevel():
 	calc_offset();
 	param_use_luma=ValueBase(false);
 	param_solid=ValueBase(false);
+	param_cobra=ValueBase(false);
+	param_overlay_only=ValueBase(false);
 
 	SET_INTERPOLATION_DEFAULTS();
 	SET_STATIC_DEFAULTS();
@@ -104,6 +122,8 @@ Layer_Bevel::set_param(const String &param, const ValueBase &value)
 	IMPORT_VALUE(param_type);
 	IMPORT_VALUE(param_use_luma);
 	IMPORT_VALUE(param_solid);
+	IMPORT_VALUE(param_cobra);
+	IMPORT_VALUE(param_overlay_only);
 	if (param == "fake_origin")
 		return true;
 
@@ -121,6 +141,8 @@ Layer_Bevel::get_param(const String &param)const
 	EXPORT_VALUE(param_angle);
 	EXPORT_VALUE(param_use_luma);
 	EXPORT_VALUE(param_solid);
+	EXPORT_VALUE(param_cobra);
+	EXPORT_VALUE(param_overlay_only);
 	if (param == "fake_origin")
 	{
 		return Vector();
@@ -224,6 +246,144 @@ Layer_Bevel::get_sub_renddesc_vfunc(const RendDesc &renddesc) const
 	return workdesc;
 }
 
+class TaskBevel: public rendering::Task
+{
+public:
+	typedef etl::handle<TaskBevel> Handle;
+	SYNFIG_EXPORT static Token token;
+	Token::Handle get_token() const override { return token.handle(); }
+
+	Real softness;
+	int type;
+	Color color1;
+	Color color2;
+	bool use_luma;
+	bool solid;
+
+	Vector offset, offset45;
+};
+
+SYNFIG_EXPORT rendering::Task::Token TaskBevel::token(
+	DescAbstract<TaskBevel>("Bevel") );
+
+#include "synfig/rendering/software/task/tasksw.h"
+
+
+class TaskBevelSW : public TaskBevel, public synfig::rendering::TaskSW
+{
+public:
+	typedef etl::handle<TaskBevel> Handle;
+	SYNFIG_EXPORT static Token token;
+	Token::Handle get_token() const override { return token.handle(); }
+
+	bool run(RunParams&) const override {
+		const Task* task = (this);
+		if (!task)
+			return false;
+		if (!task->is_valid())
+			return true;
+		if (!sub_task(0))
+			return false;
+
+		Vector ppu = task->get_pixels_per_unit();
+
+		const synfig::RectInt& target_rect = task->target_rect;
+
+		int tw = target_rect.get_width();
+		LockRead lb(sub_tasks[0]);
+		if (!lb)
+			return false;
+		LockWrite la(task);
+		if (!la)
+			return false;
+
+		synfig::surface<float> alpha_surface, blurred;
+
+		const Real	pw = 1/ppu[0],
+					ph = 1/ppu[1];
+		const Vector size(softness,softness);
+
+		int	halfsizex = (int) (std::fabs(size[0]*.5/pw) + 3),
+			halfsizey = (int) (std::fabs(size[1]*.5/ph) + 3);
+
+		int offset_u(round_to_int(offset[0]/pw)),offset_v(round_to_int(offset[1]/ph));
+
+		alpha_surface.set_wh(target_rect.get_width(), target_rect.get_height());
+		if(!use_luma)
+		{
+			synfig::Surface::const_alpha_pen bpen(lb->get_surface().get_pen(target_rect.minx, target_rect.miny));
+			for(int iy = target_rect.miny; iy < target_rect.maxy; ++iy, bpen.inc_y(), bpen.dec_x(tw)) {
+				for(int ix = target_rect.minx; ix < target_rect.maxx; ++ix, bpen.inc_x()) {
+					alpha_surface[iy][ix] = bpen.get_value().get_a();
+				}
+			}
+		}
+		else
+		{
+			synfig::Surface::const_alpha_pen bpen(lb->get_surface().get_pen(target_rect.minx, target_rect.miny));
+			for(int iy = target_rect.miny; iy < target_rect.maxy; ++iy, bpen.inc_y(), bpen.dec_x(tw)) {
+				for(int ix = target_rect.minx; ix < target_rect.maxx; ++ix, bpen.inc_x()) {
+					auto value = bpen.get_value();
+					alpha_surface[iy][ix] = value.get_a() * value.get_y();
+				}
+			}
+		}
+		save_float_surface(alpha_surface, filesystem::Path("alpha-cobra.tga"), true);
+		//blur the image
+		Blur(size, type)(alpha_surface, source_rect.get_size(), blurred); //source_rect??
+
+		save_float_surface(blurred, filesystem::Path("blurred-cobra.tga"), true);
+
+		const float u0(offset[0]/pw),   v0(offset[1]/ph);
+		const float u1(offset45[0]/pw), v1(offset45[1]/ph);
+
+		synfig::Surface::pen apen(la->get_surface().get_pen(target_rect.minx, target_rect.miny));
+		synfig::Surface::const_alpha_pen bpen(lb->get_surface().get_pen(target_rect.minx, target_rect.miny));
+
+		int v = halfsizey+std::abs(offset_v);
+		for(int iy = target_rect.miny; iy < target_rect.maxy; ++iy, apen.inc_y(), apen.dec_x(tw), bpen.inc_y(), bpen.dec_x(tw), ++v) {
+			int u = halfsizex+std::abs(offset_u);
+			for(int ix = target_rect.minx; ix < target_rect.maxx; ++ix, apen.inc_x(), bpen.inc_x(), ++u) {
+
+				Real alpha(0);
+				Color shade;
+
+				alpha += -blurred.linear_sample(u+u0, v+v0);
+				alpha -= -blurred.linear_sample(u-u0, v-v0);
+				alpha += -blurred.linear_sample(u+u1, v+v1)*0.5f;
+				alpha += -blurred.linear_sample(u+v1, v-u1)*0.5f;
+				alpha -= -blurred.linear_sample(u-u1, v-v1)*0.5f;
+				alpha -= -blurred.linear_sample(u-v1, v+u1)*0.5f;
+
+				if(solid)
+				{
+					alpha/=4.0f;
+					alpha+=0.5f;
+					shade=Color::blend(color1,color2,alpha,Color::BLEND_STRAIGHT);
+				}
+				else
+				{
+					alpha/=2;
+					if(alpha>0)
+						shade=color1,shade.set_a(shade.get_a()*alpha);
+					else
+						shade=color2,shade.set_a(shade.get_a()*-alpha);
+				}
+
+				if (shade.get_a())
+					apen.put_value(shade);
+				else
+					apen.put_value(Color::alpha());
+			}
+		}
+		debug::DebugSurface::save_to_file(*la.get_surface(), filesystem::Path("cobra.tga"), true);
+		return true;
+	}
+};
+
+SYNFIG_EXPORT rendering::Task::Token TaskBevelSW::token(
+	DescReal<TaskBevelSW, TaskBevel>("BevelSW") );
+
 bool
 Layer_Bevel::accelerated_render(Context context,Surface *surface,int quality, const RendDesc &renddesc, ProgressCallback *cb)const
 {
@@ -235,6 +395,7 @@ Layer_Bevel::accelerated_render(Context context,Surface *surface,int quality, co
 	Color color2=param_color2.get(Color());
 	bool use_luma=param_use_luma.get(bool());
 	bool solid=param_solid.get(bool());
+	bool overlay_only = param_overlay_only.get(bool());
 
 	int x,y;
 	SuperCallback stageone(cb,0,5000,10000);
@@ -315,10 +476,12 @@ Layer_Bevel::accelerated_render(Context context,Surface *surface,int quality, co
 				alpha_surface[j][i] = worksurface[j][i].get_a() * worksurface[j][i].get_y();
 			}
 	}
+	save_float_surface(alpha_surface, filesystem::Path("alpha-accel.tga"), true);
 
 	//blur the image
 	Blur(size, type, &stagetwo)(alpha_surface, workdesc.get_br()-workdesc.get_tl(), blurred);
 
+	save_float_surface(blurred, filesystem::Path("blurred-accel.tga"), true);
 	//be sure the surface is of the correct size
 	surface->set_wh(renddesc.get_w(),renddesc.get_h());
 
@@ -363,11 +526,12 @@ Layer_Bevel::accelerated_render(Context context,Surface *surface,int quality, co
 
 			if(shade.get_a())
 			{
-				(*surface)[y][x] = Color::blend(shade, worksurface[v][u], amount, blend_method);
+				(*surface)[y][x] = overlay_only ? shade : Color::blend(shade, worksurface[v][u], amount, blend_method);
 			}
-			else (*surface)[y][x] = worksurface[v][u];
+			else (*surface)[y][x] = overlay_only ? Color::alpha() : worksurface[v][u];
 		}
 	}
+	debug::DebugSurface::save_to_file(*surface, filesystem::Path("accel.tga"), true);
 
 	if(cb && !cb->amount_complete(10000,10000))
 	{
@@ -425,6 +589,15 @@ Layer_Bevel::get_param_vocab(void)const
 		.set_local_name(_("Solid"))
 	);
 
+	ret.push_back(ParamDesc("cobra")
+		.set_local_name(_("Cobra Engine"))
+	);
+
+	ret.push_back(ParamDesc("overlay_only")
+		.set_local_name(_("Overlay only"))
+		.set_description(_("Do not render this layer context"))
+	);
+
 	ret.push_back(ParamDesc("fake_origin")
 		.hidden()
 	);
@@ -454,5 +627,32 @@ Layer_Bevel::get_full_bounding_rect(Context context)const
 }
 
 rendering::Task::Handle
+Layer_Bevel::build_composite_fork_task_vfunc(ContextParams /*context_params*/, rendering::Task::Handle sub_task) const
+{
+	TaskBevel::Handle task_bevel(new TaskBevel());
+	task_bevel->softness = param_softness.get(Real());
+	task_bevel->type = param_type.get(int());
+	task_bevel->color1 = param_color1.get(Color());
+	task_bevel->color2 = param_color2.get(Color());
+	task_bevel->use_luma = param_use_luma.get(bool());
+	task_bevel->solid = param_solid.get(bool());
+
+	task_bevel->offset = offset;
+	task_bevel->offset45 = offset45;
+
+	task_bevel->sub_task(0) = sub_task;
+
+	return task_bevel;
+}
+
+rendering::Task::Handle
 Layer_Bevel::build_rendering_task_vfunc(Context context) const
-	{ return Layer::build_rendering_task_vfunc(context); }
+{
+	if (!param_cobra.get(bool()))
+		return Layer::build_rendering_task_vfunc(context);
+
+	if (!param_overlay_only.get(bool()))
+		return Layer_CompositeFork::build_rendering_task_vfunc(context);
+
+	return build_composite_fork_task_vfunc(context.get_params(), context.build_rendering_task());
+}
