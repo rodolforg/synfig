@@ -295,14 +295,7 @@ public:
 
 		synfig::surface<float> alpha_surface, blurred;
 
-		const Real	pw = 1/ppu[0],
-					ph = 1/ppu[1];
 		const Vector size(softness,softness);
-
-		int	halfsizex = (int) (std::fabs(size[0]*.5/pw) + 3),
-			halfsizey = (int) (std::fabs(size[1]*.5/ph) + 3);
-
-		int offset_u(round_to_int(offset[0]/pw)),offset_v(round_to_int(offset[1]/ph));
 
 		alpha_surface.set_wh(target_rect.get_width(), target_rect.get_height());
 		if(!use_luma)
@@ -329,6 +322,13 @@ public:
 		Blur(size, type)(alpha_surface, source_rect.get_size(), blurred); //source_rect??
 
 		save_float_surface(blurred, filesystem::Path("blurred-cobra.tga"), true);
+
+		const Real pw = 1/ppu[0];
+		const Real ph = 1/ppu[1];
+		const int halfsizex = (int) (std::fabs(size[0]*.5/pw) + 3);
+		const int halfsizey = (int) (std::fabs(size[1]*.5/ph) + 3);
+
+		const int offset_u(round_to_int(offset[0]/pw)),offset_v(round_to_int(offset[1]/ph));
 
 		const float u0(offset[0]/pw),   v0(offset[1]/ph);
 		const float u1(offset45[0]/pw), v1(offset45[1]/ph);
