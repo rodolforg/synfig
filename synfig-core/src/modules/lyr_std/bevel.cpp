@@ -85,7 +85,7 @@ Layer_Bevel::Layer_Bevel():
 	calc_offset();
 	param_use_luma=ValueBase(false);
 	param_solid=ValueBase(false);
-	param_cobra=ValueBase(false);
+	param_cobra=ValueBase(true);
 	param_overlay_only=ValueBase(false);
 
 	SET_INTERPOLATION_DEFAULTS();
@@ -276,6 +276,12 @@ public:
 	SYNFIG_EXPORT static Token token;
 	Token::Handle get_token() const override { return token.handle(); }
 
+	Rect calc_bounds() const override
+	{
+			synfig::warning("Calc bounds %s", sub_task(0) ? "y" : "n");
+		return sub_task(0) ? sub_task(0)->get_bounds() : Rect::zero(); // FIXME
+	}
+
 	bool run(RunParams&) const override {
 		if (!is_valid())
 			return true;
@@ -284,6 +290,14 @@ public:
 
 		Vector ppu = get_pixels_per_unit();
 
+synfig::error("Target: %i, %i  ->  %i, %i", target_rect.get_min()[0], target_rect.get_min()[1], target_rect.get_max()[0], target_rect.get_max()[1]);
+synfig::error("Sub Target: %i, %i  ->  %i, %i", sub_tasks[0]->target_rect.get_min()[0], sub_tasks[0]->target_rect.get_min()[1], sub_tasks[0]->target_rect.get_max()[0], sub_tasks[0]->target_rect.get_max()[1]);
+
+synfig::error("Source: %f, %f  ->  %f, %f", source_rect.get_min()[0], source_rect.get_min()[1], source_rect.get_max()[0], source_rect.get_max()[1]);
+synfig::error("Sub source: %f, %f  ->  %f, %f", sub_tasks[0]->source_rect.get_min()[0], sub_tasks[0]->source_rect.get_min()[1], sub_tasks[0]->source_rect.get_max()[0], sub_tasks[0]->source_rect.get_max()[1]);
+
+synfig::error("ppu: %f, %f", get_pixels_per_unit()[0], get_pixels_per_unit()[1]);
+synfig::error("Sub ppu: %f, %f", sub_tasks[0]->get_pixels_per_unit()[0], sub_tasks[0]->get_pixels_per_unit()[1]);
 
 		int tw = target_rect.get_width();
 		LockWrite la(this);
@@ -299,6 +313,8 @@ public:
 			get_alpha_surface(alpha_surface);
 			//blur the image
 			Blur(size, type)(alpha_surface, source_rect.get_size(), blurred); //source_rect??
+			synfig::error("Alpha size: %i, %i", alpha_surface.get_w(), alpha_surface.get_h());
+			synfig::error("Blurred size: %i, %i", blurred.get_w(), blurred.get_h());
 		}
 
 		save_float_surface(blurred, filesystem::Path("blurred-cobra.tga"), true);
@@ -351,7 +367,7 @@ public:
 					apen.put_value(Color::alpha());
 			}
 		}
-		debug::DebugSurface::save_to_file(*la.get_surface(), filesystem::Path("cobra.tga"), true);
+		// debug::DebugSurface::save_to_file(*la.get_surface(), filesystem::Path("cobra.tga"), true);
 		return true;
 	}
 
@@ -362,10 +378,28 @@ private:
 		if (!lb)
 			return false;
 
+		Vector ppu = get_pixels_per_unit();
+		Matrix transformation_matrix;
+		transformation_matrix.m00 = ppu[0];
+		transformation_matrix.m11 = ppu[1];
+		transformation_matrix.m20 = target_rect.minx - source_rect.minx*ppu[0];
+		transformation_matrix.m21 = target_rect.miny - source_rect.miny*ppu[1];
+		Matrix inv_transformation_matrix = transformation_matrix.get_inverted();
+
+		Vector sub_ppu = sub_task(0)->get_pixels_per_unit();
+		Matrix sub_transformation_matrix;
+		sub_transformation_matrix.m00 = sub_ppu[0];
+		sub_transformation_matrix.m11 = sub_ppu[1];
+		sub_transformation_matrix.m20 = sub_task(0)->target_rect.minx - sub_task(0)->source_rect.minx*sub_ppu[0];
+		sub_transformation_matrix.m21 = sub_task(0)->target_rect.miny - sub_task(0)->source_rect.miny*sub_ppu[1];
+
+		sub_transformation_matrix *= inv_transformation_matrix;
+
 		const RectInt& rect = target_rect;
 		const int rect_w = rect.get_width();
 
-		synfig::Surface::const_alpha_pen bpen(lb->get_surface().get_pen(rect.minx, rect.miny));
+		const Vector sub_rect_min = sub_transformation_matrix.get_transformed({target_rect.get_min()[0], target_rect.get_min()[1]});
+		synfig::Surface::const_alpha_pen bpen(lb->get_surface().get_pen(sub_rect_min[0], sub_rect_min[1]));
 		synfig::surface<float>& alpha_surface = output;
 		alpha_surface.set_wh(rect.get_width(), rect.get_height());
 		if (!use_luma) {
@@ -382,7 +416,7 @@ private:
 				}
 			}
 		}
-		save_float_surface(alpha_surface, filesystem::Path("alpha-cobra.tga"), true);
+		//save_float_surface(alpha_surface, filesystem::Path("alpha-cobra.tga"), true);
 		return true;
 	}
 };
