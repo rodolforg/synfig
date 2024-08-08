@@ -286,40 +286,20 @@ public:
 
 
 		int tw = target_rect.get_width();
-		LockRead lb(sub_tasks[0]);
-		if (!lb)
-			return false;
 		LockWrite la(this);
 		if (!la)
 			return false;
 
-		synfig::surface<float> alpha_surface, blurred;
+		synfig::surface<float> blurred;
 
 		const Vector size(softness,softness);
 
-		alpha_surface.set_wh(target_rect.get_width(), target_rect.get_height());
-		if(!use_luma)
 		{
-			synfig::Surface::const_alpha_pen bpen(lb->get_surface().get_pen(target_rect.minx, target_rect.miny));
-			for(int iy = target_rect.miny; iy < target_rect.maxy; ++iy, bpen.inc_y(), bpen.dec_x(tw)) {
-				for(int ix = target_rect.minx; ix < target_rect.maxx; ++ix, bpen.inc_x()) {
-					alpha_surface[iy][ix] = bpen.get_value().get_a();
-				}
-			}
+			synfig::surface<float> alpha_surface;
+			get_alpha_surface(alpha_surface);
+			//blur the image
+			Blur(size, type)(alpha_surface, source_rect.get_size(), blurred); //source_rect??
 		}
-		else
-		{
-			synfig::Surface::const_alpha_pen bpen(lb->get_surface().get_pen(target_rect.minx, target_rect.miny));
-			for(int iy = target_rect.miny; iy < target_rect.maxy; ++iy, bpen.inc_y(), bpen.dec_x(tw)) {
-				for(int ix = target_rect.minx; ix < target_rect.maxx; ++ix, bpen.inc_x()) {
-					auto value = bpen.get_value();
-					alpha_surface[iy][ix] = value.get_a() * value.get_y();
-				}
-			}
-		}
-		save_float_surface(alpha_surface, filesystem::Path("alpha-cobra.tga"), true);
-		//blur the image
-		Blur(size, type)(alpha_surface, source_rect.get_size(), blurred); //source_rect??
 
 		save_float_surface(blurred, filesystem::Path("blurred-cobra.tga"), true);
 
@@ -372,6 +352,37 @@ public:
 			}
 		}
 		debug::DebugSurface::save_to_file(*la.get_surface(), filesystem::Path("cobra.tga"), true);
+		return true;
+	}
+
+private:
+	bool get_alpha_surface(synfig::surface<float>& output) const
+	{
+		LockRead lb(sub_tasks[0]);
+		if (!lb)
+			return false;
+
+		const RectInt& rect = target_rect;
+		const int rect_w = rect.get_width();
+
+		synfig::Surface::const_alpha_pen bpen(lb->get_surface().get_pen(rect.minx, rect.miny));
+		synfig::surface<float>& alpha_surface = output;
+		alpha_surface.set_wh(rect.get_width(), rect.get_height());
+		if (!use_luma) {
+			for (int iy = rect.miny; iy < rect.maxy; ++iy, bpen.inc_y(), bpen.dec_x(rect_w)) {
+				for (int ix = rect.minx; ix < rect.maxx; ++ix, bpen.inc_x()) {
+					alpha_surface[iy][ix] = bpen.get_value().get_a();
+				}
+			}
+		} else {
+			for (int iy = rect.miny; iy < rect.maxy; ++iy, bpen.inc_y(), bpen.dec_x(rect_w)) {
+				for (int ix = rect.minx; ix < rect.maxx; ++ix, bpen.inc_x()) {
+					auto value = bpen.get_value();
+					alpha_surface[iy][ix] = value.get_a() * value.get_y();
+				}
+			}
+		}
+		save_float_surface(alpha_surface, filesystem::Path("alpha-cobra.tga"), true);
 		return true;
 	}
 };
