@@ -50,6 +50,7 @@
 #include "paramdesc.h"
 #include "transform.h"
 
+#include "layers/layer_cobratest.h"
 #include "layers/layer_composite.h"
 #include "layers/layer_duplicate.h"
 #include "layers/layer_filtergroup.h"
@@ -144,6 +145,7 @@ Layer::subsys_init()
 	INCLUDE_LAYER(Layer_Skeleton);
 	INCLUDE_LAYER(Layer_SkeletonDeformation);
 	INCLUDE_LAYER(Layer_Sound);
+	INCLUDE_LAYER(Layer_CobraTest);
 
 #undef LAYER_ALIAS
 #undef INCLUDE_LAYER

@@ -1,6 +1,7 @@
 target_sources(libsynfig
     PRIVATE
         "${CMAKE_CURRENT_LIST_DIR}/layer_bitmap.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/layer_cobratest.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/layer_composite.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/layer_composite_fork.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/layer_duplicate.cpp"

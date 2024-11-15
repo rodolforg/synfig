@@ -1,5 +1,6 @@
 LAYERS_HH = \
 	layers/layer_bitmap.h \
+	layers/layer_cobratest.h \
 	layers/layer_composite.h \
 	layers/layer_composite_fork.h \
 	layers/layer_duplicate.h \
@@ -21,6 +22,7 @@ LAYERS_HH = \
 
 LAYERS_CC = \
 	layers/layer_bitmap.cpp \
+	layers/layer_cobratest.cpp \
 	layers/layer_composite.cpp \
 	layers/layer_composite_fork.cpp \
 	layers/layer_duplicate.cpp \

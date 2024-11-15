@@ -225,6 +225,7 @@ src/synfig/layer.cpp
 src/synfig/layer.h
 src/synfig/layers/layer_bitmap.cpp
 src/synfig/layers/layer_bitmap.h
+src/synfig/layers/layer_cobratest.cpp
 src/synfig/layers/layer_composite.cpp
 src/synfig/layers/layer_composite.h
 src/synfig/layers/layer_duplicate.cpp
