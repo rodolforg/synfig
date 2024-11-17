@@ -39,9 +39,11 @@
 #include <synfig/renddesc.h>
 #include <synfig/rendering/task.h>
 #include <synfig/rendering/software/task/tasksw.h>
+#include <synfig/rendering/common/task/tasktransformation.h>
 #include <synfig/target.h>
 
 
+#include <synfig/general.h>
 #include <synfig/localization.h>
 #include <synfig/paramdesc.h>
 
@@ -64,57 +66,77 @@ SYNFIG_LAYER_SET_VERSION(Layer_CobraTest,"0.1");
 /* === P R O C E D U R E S ================================================= */
 
 
+struct CoordConverter {
+	CoordConverter(const rendering::Task& task)
+		: ppu(task.get_pixels_per_unit()),
+		upp(task.get_units_per_pixel())
+	{
+		const Rect& source = task.source_rect;
+		const RectInt& target = task.target_rect;
+		k[0] = source.get_min()[0] * target.get_max()[0] - source.get_max()[0] * target.get_min()[0];
+		k[1] = source.get_min()[1] * target.get_max()[1] - source.get_max()[1] * target.get_min()[1];
+
+		w_size = source.get_size();
+		r_size = target.get_size();
+
+		k_over_w_size = k.divide_coords(source.get_size());
+		k_over_r_size[0] = k[0] / target.get_size()[0];
+		k_over_r_size[1] = k[1] / target.get_size()[1];
+	}
+
+	PointInt to_raster(Point p)
+	{
+		Point q = p.multiply_coords(ppu) - k_over_w_size;
+		return {round(q[0]), round(q[1])};
+	}
+
+	Point to_world(PointInt p)
+	{
+		return Point(p[0], p[1]).multiply_coords(upp) + k_over_w_size;
+	}
+
+	std::function<PointInt (PointInt)> from_subtask_raster_coord(const rendering::Task& subtask) const {
+		CoordConverter sub_converter(subtask);
+		const Point kk = sub_converter.k_over_r_size.multiply_coords(ppu) - k_over_w_size;
+		auto conv = [kk](PointInt sr) -> PointInt {
+			PointInt dr;
+			dr[0] = sr[0] + kk[0];
+			dr[1] = sr[1] + kk[1];
+			return dr;
+		};
+		return conv;
+	}
+
+	std::function<PointInt (PointInt)> to_subtask_raster_coord(const rendering::Task& subtask) const {
+		CoordConverter sub_converter(subtask);
+		const Point kk = sub_converter.k_over_r_size.multiply_coords(ppu) - k_over_w_size;
+		auto conv = [kk](PointInt dr) -> PointInt {
+			PointInt sr;
+			sr[0] = dr[0] - kk[0];
+			sr[1] = dr[1] - kk[1];
+			return sr;
+		};
+		return conv;
+	}
+
+
+private:
+	Vector ppu, upp;
+	Vector k;
+	Vector k_over_w_size;
+	Vector k_over_r_size;
+	Vector w_size;
+	VectorInt r_size;
+};
+
+
 class TaskCobraTest
-	: public rendering::Task
+	: public rendering::Task//, public rendering::TaskInterfaceTransformationPass
 {
 public:
 	typedef etl::handle<TaskCobraTest> Handle;
 	static Token token;
 	Token::Handle get_token() const override { return token.handle(); }
-
-	// Rect
-	// compute_required_source_rect(const Rect& source_rect, const Matrix& inv_matrix) const override
-	// {
-	// 	//return Rect(-10,-10,10,10);
-	// 	if (!internal.distort_outside)
-	// 		return source_rect;
-
-	// 	const int tw = target_rect.get_width();
-	// 	const int th = target_rect.get_height();
-	// 	Vector dx = inv_matrix.axis_x();
-	// 	Vector dy = inv_matrix.axis_y() - dx*(Real)tw;
-	// 	Vector p = inv_matrix.get_transformed( Vector((Real)target_rect.minx, (Real)target_rect.miny) );
-
-	// 	Rect sub_source_rect = source_rect;
-
-	// 	// Check from where the boundary pixels come in source context (before transform)
-	// 	// vertical borders
-	// 	for (int iy = target_rect.miny; iy < target_rect.maxy; ++iy, p[1] += dy[1]) {
-	// 		Point tmp = internal.transform(p);
-	// 		sub_source_rect.expand(tmp);
-	// 		tmp = internal.transform(Point(p[0] + dx[0]*(Real)tw, p[1]));
-	// 		sub_source_rect.expand(tmp);
-	// 	}
-
-	// 	// horizontal borders
-	// 	for (int ix = target_rect.minx; ix < target_rect.maxx; ++ix, p[0] += dx[0]) {
-	// 		Point tmp = internal.transform(p);
-	// 		sub_source_rect.expand(tmp);
-	// 		tmp = internal.transform(Point(p[0], p[1] - dy[1]*(Real)th));
-	// 		sub_source_rect.expand(tmp);
-	// 	}
-
-	// 	return sub_source_rect;
-	// }
-
-
-	VectorInt
-	get_offset() const
-	{
-		if (!sub_tasks[0]) return VectorInt::zero();
-		Vector offset = (sub_task()->source_rect.get_min() - source_rect.get_min()).multiply_coords(get_pixels_per_unit());
-		return VectorInt((int)round(offset[0]), (int)round(offset[1])) - sub_task()->target_rect.get_min();
-	}
 
 	Task::Handle&
 	sub_task()
@@ -146,102 +168,52 @@ public:
 
 	bool run(Task::RunParams& /*params*/) const override
 	{
-		//return run_task(*this);
 		if (!sub_task())
 			return true;
 
-		RectInt r = target_rect;
-		if (r.valid())
+		Rect common_source_rect;
+		rect_set_intersect(common_source_rect, source_rect, sub_task()->source_rect);
+		if (!common_source_rect.is_valid())
+			return false;
+
+		CoordConverter conv(*this);
+		auto convert_to_raster_subtask = conv.to_subtask_raster_coord(*sub_task());
+
+		const PointInt target_min = conv.to_raster(common_source_rect.get_min());
+		const PointInt target_max = conv.to_raster(common_source_rect.get_max());
+
+		synfig::warning("\n"
+						"Task World [%f, %f], [%f, %f]\n"
+						"SubTask World [%f, %f], [%f, %f]\n"
+						"Common World [%f, %f], [%f, %f]\n",
+						 source_rect.get_min()[0], source_rect.get_min()[1], source_rect.get_max()[0], source_rect.get_max()[1],
+						sub_task()->source_rect.get_min()[0], sub_task()->source_rect.get_min()[1], sub_task()->source_rect.get_max()[0], sub_task()->source_rect.get_max()[1],
+						common_source_rect.get_min()[0], common_source_rect.get_min()[1], common_source_rect.get_max()[0], common_source_rect.get_max()[1]);
+
+		synfig::warning("\n"
+						"Task Raster [%i, %i], [%i, %i]\n"
+						"SubTask Raster [%i, %i], [%i, %i]\n"
+						"Common Raster [%i, %i], [%i, %i]\n",
+						target_rect.get_min()[0], target_rect.get_min()[1], target_rect.get_max()[0], target_rect.get_max()[1],
+						sub_task()->target_rect.get_min()[0], sub_task()->target_rect.get_min()[1], sub_task()->target_rect.get_max()[0], sub_task()->target_rect.get_max()[1],
+						target_min[0], target_min[1], target_max[0], target_max[1]);
+
+		LockWrite ldst(this);
+		if (!ldst) return false;
+		LockRead lsrc(sub_task());
+		if (!lsrc) return false;
+
+		const synfig::Surface& src = lsrc->get_surface();
+		synfig::Surface& dst = ldst->get_surface();
+
+		for(int y = target_min[1]; y < target_max[1]; ++y)
 		{
-			VectorInt offset = get_offset();
-
-			RectInt ra = sub_task()->target_rect + r.get_min() + offset;
-			if (ra.valid())
-			{
-				rect_set_intersect(ra, ra, r);
-				if (ra.valid())
-				{
-					LockWrite ldst(this);
-					if (!ldst) return false;
-					LockRead lsrc(sub_task());
-					if (!lsrc) return false;
-
-					const synfig::Surface &a = lsrc->get_surface();
-					synfig::Surface &c = ldst->get_surface();
-
-					const Vector upp = get_units_per_pixel();
-					const Vector sub_ppu = sub_tasks[0]->get_pixels_per_unit();
-
-					// from raster r to 'world' w conversion: w = upp * r + (w0 * r1 + w1 * r0) / r_size
-					Vector constant;
-					constant[0] = (source_rect.get_min()[0] * target_rect.get_max()[0] - source_rect.get_max()[0] * target_rect.get_min()[0]) / target_rect.get_size()[0];
-					constant[1] = (source_rect.get_min()[1] * target_rect.get_max()[1] - source_rect.get_max()[1] * target_rect.get_min()[1]) / target_rect.get_size()[1];
-					Vector constant_;
-					constant_[0] = (source_rect.get_min()[0] * target_rect.get_max()[0] - source_rect.get_max()[0] * target_rect.get_min()[0]);
-					constant_[1] = (source_rect.get_min()[1] * target_rect.get_max()[1] - source_rect.get_max()[1] * target_rect.get_min()[1]);
-
-					Vector sub_constant_w_r;
-					sub_constant_w_r[0] = (sub_tasks[0]->source_rect.get_min()[0] * sub_tasks[0]->target_rect.get_max()[0] - sub_tasks[0]->source_rect.get_max()[0] * sub_tasks[0]->target_rect.get_min()[0]) / sub_tasks[0]->source_rect.get_size()[0];
-					sub_constant_w_r[1] = (sub_tasks[0]->source_rect.get_min()[1] * sub_tasks[0]->target_rect.get_max()[1] - sub_tasks[0]->source_rect.get_max()[1] * sub_tasks[0]->target_rect.get_min()[1]) / sub_tasks[0]->source_rect.get_size()[1];
-					Vector sub_constant_w_r_;
-					sub_constant_w_r_[0] = (sub_tasks[0]->source_rect.get_min()[0] * sub_tasks[0]->target_rect.get_max()[0] - sub_tasks[0]->source_rect.get_max()[0] * sub_tasks[0]->target_rect.get_min()[0]);
-					sub_constant_w_r_[1] = (sub_tasks[0]->source_rect.get_min()[1] * sub_tasks[0]->target_rect.get_max()[1] - sub_tasks[0]->source_rect.get_max()[1] * sub_tasks[0]->target_rect.get_min()[1]);
-
-					// synfig::warning("source_rect: (%f, %f) , (%f, %f) [%f, %f]", source_rect.get_min()[0], source_rect.get_min()[1], source_rect.get_max()[0], source_rect.get_max()[1], source_rect.get_size()[0], source_rect.get_size()[1]);
-					// synfig::warning("target_rect: (%i, %i) , (%i, %i) [%i, %i]", target_rect.get_min()[0], target_rect.get_min()[1], target_rect.get_max()[0], target_rect.get_max()[1], target_rect.get_size()[0], target_rect.get_size()[1]);
-					// synfig::warning("a_rect: (%i, %i) , (%i, %i) [%i, %i]", ra.get_min()[0], ra.get_min()[1], ra.get_max()[0], ra.get_max()[1], ra.get_size()[0], ra.get_size()[1]);
-					// synfig::warning("sub_source_rect: (%f, %f) , (%f, %f) [%f, %f]", sub_task()->source_rect.get_min()[0], sub_task()->source_rect.get_min()[1], sub_task()->source_rect.get_max()[0], sub_task()->source_rect.get_max()[1], sub_task()->source_rect.get_size()[0], sub_task()->source_rect.get_size()[1]);
-					// synfig::warning("sub_target_rect: (%i, %i) , (%i, %i) [%i, %i]", sub_task()->target_rect.get_min()[0], sub_task()->target_rect.get_min()[1], sub_task()->target_rect.get_max()[0], sub_task()->target_rect.get_max()[1], sub_task()->target_rect.get_size()[0], sub_task()->target_rect.get_size()[1]);
-					// synfig::warning("sub_ppu: %f, %f\tupp: %f, %f", sub_ppu[0], sub_ppu[1], upp[0], upp[1]);
-					// // synfig::warning("sub ppu: %f, %f\tupp: %f, %f", sub_tasks[0]->get_pixels_per_unit()[0], sub_tasks[0]->get_pixels_per_unit()[1], upp[0], upp[1]);
-					// synfig::warning("offset: %f, %f", offset[0], offset[1]);
-					// synfig::warning("r->w: %f, %f\tw->r: %f, %f", constant[0], constant[1], sub_constant_w_r[0], sub_constant_w_r[1]);
-					// synfig::warning("min: %f, %f\tmax: %f, %f", ra.minx - r.minx + offset[0], ra.miny - r.miny + offset[1], ra.maxx - r.minx + offset[0], ra.maxy - r.miny + offset[1]);
-					// synfig::warning("uv: min: %f, %f\tmax: %f, %f", ra.minx * upp[0] + constant[0], ra.miny * upp[1] + constant[1], ra.maxx * upp[0] + constant[0], ra.maxy * upp[1] + constant[1]);
-					// synfig::warning("XY: min: %f, %f\tmax: %f, %f", (ra.minx * upp[0] + constant[0])* sub_ppu[0] - sub_constant_w_r[0], (ra.miny * upp[1] + constant[1]) * sub_ppu[1] - sub_constant_w_r[1], (ra.maxx * upp[0] + constant[0])* sub_ppu[0] - sub_constant_w_r[0], (ra.maxy * upp[1] + constant[1]) * sub_ppu[1] - sub_constant_w_r[1]);
-
-					bool first_run = true;
-					// SmartFILE f(filesystem::Path("twirl-log-pr.csv"), "w");
-					for(int y = ra.miny; y < ra.maxy; ++y)
-					{
-						Color *cc = &c[y][ra.minx];
-						auto pen = c.get_pen(ra.minx, y);
-						for (int x = ra.minx; x < ra.maxx; ++x, ++cc, pen.inc_x()) {
-							Real u = upp[0] * x + constant[0];
-							Real v = upp[1] * y + constant[1];
-							//							Real u = (source_rect.get_size()[0] * x + constant_[0]) / target_rect.get_size()[0];
-							//							Real v = (source_rect.get_size()[1] * y + constant_[1]) / target_rect.get_size()[1];
-							if (first_run) {
-								first_run = false;
-								fprintf(stderr, "-p- %f, %f\n", u, v);
-								// synfig::error("\t\tsx: %f, %f", (u * sub_tasks[0]->target_rect.get_size()[0] - sub_constant_w_r_[0]) / sub_tasks[0]->source_rect.get_size()[0], (v * sub_tasks[0]->target_rect.get_size()[1] - sub_constant_w_r_[1]) / sub_tasks[0]->source_rect.get_size()[1]);
-								// synfig::error("\tx: %i y: %i", x, y);
-							}
-							//Point q = /*internal.transform*/(Vector(u, v));
-							Point q = point_vfunc(Vector(u, v));
-							// synfig::warning("\tp: %f, %f\tq: %f, %f", u, v, q[0], q[1]);
-							// from 'world' to raster conversion: r = (w - constant) * ppu
-							int sx = q[0] * sub_ppu[0] - sub_constant_w_r[0];
-							int sy = q[1] * sub_ppu[1] - sub_constant_w_r[1];
-							//							int sx = (q[0] * sub_tasks[0]->target_rect.get_size()[0] - sub_constant_w_r_[0]) / sub_tasks[0]->source_rect.get_size()[0];
-							//							int sy = (q[1] * sub_tasks[0]->target_rect.get_size()[1] - sub_constant_w_r_[1]) / sub_tasks[0]->source_rect.get_size()[1];
-							if (sx != x || sy != y) {
-								//								synfig::error("\t\tsx: %i sy: %i   |   %f, %f", sx, sy, (q[0] * sub_tasks[0]->target_rect.get_size()[0] - sub_constant_w_r_[0]) / sub_tasks[0]->source_rect.get_size()[0], (q[1] * sub_tasks[0]->target_rect.get_size()[1] - sub_constant_w_r_[1]) / sub_tasks[0]->source_rect.get_size()[1]);
-								//							synfig::error("\tx: %i y: %i", x, y);
-							}
-							// synfig::error("sx: %i sy: %i", sx, sy);
-							// synfig::error("\tsx: %i sy: %i", sx- r.minx + offset[0], sy- r.miny + offset[1]);
-							const Color *ca = &a[sy][sx];//&a[sy - r.miny + offset[1]][sx - r.minx + offset[0]];
-							*cc = *ca;
-							//*cc = a.cubic_sample(sx,sy);///*Color::red();//**/*ca;//Color::red();//*ca;
-							//							pen.put_value(a.cubic_sample(sx, sy));
-							// fprintf(f.get(), "%i;%i;%i;%i;%f;%f;%f;%f\n", x, y, sx, sy, u, v, q[0], q[1]);
-						}
-					}
-				}
+			Color* cc = &dst[y][target_min[0]];
+			for (int x = target_min[0]; x < target_max[0]; ++x, ++cc) {
+				auto p = convert_to_raster_subtask(PointInt(x,y));
+				*cc = src[p[1]][p[0]];
 			}
 		}
-
 		return true;
 	}
 };
