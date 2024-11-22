@@ -261,6 +261,74 @@ public:
 	bool solid;
 
 	Vector offset, offset45;
+
+	// void set_coords_sub_tasks() override
+	// {
+	// 	synfig::error(__PRETTY_FUNCTION__);
+	// 	if (!sub_task(0)) {
+	// 		trunc_to_zero();
+	// 		return;
+	// 	}
+	// 	if (!is_valid_coords()) {
+	// 		sub_task(0)->set_coords_zero();
+	// 		return;
+	// 	}
+
+	// 	const int w = target_rect.get_width();
+	// 	const int h = target_rect.get_height();
+	// 	const Real pw = get_units_per_pixel()[0];
+	// 	const Real ph = get_units_per_pixel()[1];
+
+	// 	const Vector size(softness,softness);
+
+	// 	//expand the working surface to accommodate the blur
+
+	// 	//the expanded size = 1/2 the size in each direction rounded up
+	// 	int	halfsizex = (int) (std::fabs(size[0]*.5/pw) + 3),
+	// 		halfsizey = (int) (std::fabs(size[1]*.5/ph) + 3);
+
+	// 	const int offset_u(round_to_int(offset[0]/pw));
+	// 	const int offset_v(round_to_int(offset[1]/ph));
+	// 	const int offset_w(w+std::abs(offset_u)*2);
+	// 	const int offset_h(h+std::abs(offset_v)*2);
+
+	// 	//expand by 1/2 size in each direction on either side
+	// 	switch(type)
+	// 	{
+	// 		case Blur::DISC:
+	// 		case Blur::BOX:
+	// 		case Blur::CROSS:
+	// 		case Blur::FASTGAUSSIAN:
+	// 		{
+	// 			halfsizex = std::max(1, halfsizex);
+	// 			halfsizey = std::max(1, halfsizey);
+	// 			break;
+	// 		}
+	// 		case Blur::GAUSSIAN:
+	// 		{
+	// 		#define GAUSSIAN_ADJUSTMENT		(0.05)
+
+	// 			Real pw2 = pw * pw;
+	// 			Real ph2 = ph * ph;
+
+	// 			halfsizex = (int)(size[0]*GAUSSIAN_ADJUSTMENT/std::fabs(pw2) + 0.5);
+	// 			halfsizey = (int)(size[1]*GAUSSIAN_ADJUSTMENT/std::fabs(ph2) + 0.5);
+
+	// 			halfsizex = (halfsizex + 1)/2;
+	// 			halfsizey = (halfsizey + 1)/2;
+	// 			break;
+	// 		}
+	// 	}
+
+	// 	Real delta_x = -offset_u - halfsizex;
+	// 	Real delta_y = -offset_v - halfsizey;
+	// 	Real new_w = offset_u + offset_w + 2*halfsizex;
+	// 	Real new_h = offset_v + offset_h + 2*halfsizey;
+
+	// 	sub_task(0)->set_coords(Rect(source_rect.minx + pw*delta_x, source_rect.miny + ph*delta_y, pw*new_w, ph*new_h), VectorInt(new_w, new_h));
+	// 	synfig::error("dx %f dy %f\nw %f %f", delta_x, delta_y, new_w, new_h);
+
+	// }
 };
 
 SYNFIG_EXPORT rendering::Task::Token TaskBevel::token(
@@ -312,7 +380,7 @@ synfig::error("Sub ppu: %f, %f", sub_tasks[0]->get_pixels_per_unit()[0], sub_tas
 			synfig::surface<float> alpha_surface;
 			get_alpha_surface(alpha_surface);
 			//blur the image
-			Blur(size, type)(alpha_surface, source_rect.get_size(), blurred); //source_rect??
+			Blur(size, type)(alpha_surface, sub_task(0)->source_rect.get_size(), blurred); //source_rect??
 			synfig::error("Alpha size: %i, %i", alpha_surface.get_w(), alpha_surface.get_h());
 			synfig::error("Blurred size: %i, %i", blurred.get_w(), blurred.get_h());
 		}
@@ -367,7 +435,7 @@ synfig::error("Sub ppu: %f, %f", sub_tasks[0]->get_pixels_per_unit()[0], sub_tas
 					apen.put_value(Color::alpha());
 			}
 		}
-		// debug::DebugSurface::save_to_file(*la.get_surface(), filesystem::Path("cobra.tga"), true);
+		debug::DebugSurface::save_to_file(*la.get_surface(), filesystem::Path("cobra.tga"), true);
 		return true;
 	}
 
@@ -416,7 +484,7 @@ private:
 				}
 			}
 		}
-		//save_float_surface(alpha_surface, filesystem::Path("alpha-cobra.tga"), true);
+		save_float_surface(alpha_surface, filesystem::Path("alpha-cobra.tga"), true);
 		return true;
 	}
 };
