@@ -243,8 +243,74 @@ Layer_Bevel::get_sub_renddesc_vfunc(const RendDesc &renddesc) const
 	}
 
 	workdesc.set_subwindow( -halfsizex, -halfsizey, offset_w + 2*halfsizex, offset_h + 2*halfsizey );
+	synfig::warning("Original RendDesc:\nx %f y %f\nw %i h %i", renddesc.get_tl()[0], renddesc.get_tl()[1], renddesc.get_w(), renddesc.get_h());
+	synfig::warning("Changed RendDesc:\nx %f y %f\nw %i h %i", workdesc.get_tl()[0], workdesc.get_tl()[1], workdesc.get_w(), workdesc.get_h());
 	return workdesc;
 }
+
+
+struct CoordConverter {
+	CoordConverter(const rendering::Task& task)
+		: ppu(task.get_pixels_per_unit()),
+		upp(task.get_units_per_pixel())
+	{
+			const Rect& source = task.source_rect;
+			const RectInt& target = task.target_rect;
+			k[0] = source.get_min()[0] * target.get_max()[0] - source.get_max()[0] * target.get_min()[0];
+			k[1] = source.get_min()[1] * target.get_max()[1] - source.get_max()[1] * target.get_min()[1];
+
+			w_size = source.get_size();
+			r_size = target.get_size();
+
+			k_over_w_size = k.divide_coords(source.get_size());
+			k_over_r_size[0] = k[0] / target.get_size()[0];
+			k_over_r_size[1] = k[1] / target.get_size()[1];
+	}
+
+	PointInt to_raster(Point p)
+	{
+			Point q = p.multiply_coords(ppu) - k_over_w_size;
+			return {round(q[0]), round(q[1])};
+	}
+
+	Point to_world(PointInt p)
+	{
+			return Point(p[0], p[1]).multiply_coords(upp) + k_over_w_size;
+	}
+
+	std::function<PointInt (PointInt)> from_subtask_raster_coord(const rendering::Task& subtask) const {
+			CoordConverter sub_converter(subtask);
+			const Point kk = sub_converter.k_over_r_size.multiply_coords(ppu) - k_over_w_size;
+			auto conv = [kk](PointInt sr) -> PointInt {
+				PointInt dr;
+				dr[0] = sr[0] + kk[0];
+				dr[1] = sr[1] + kk[1];
+				return dr;
+			};
+			return conv;
+	}
+
+	std::function<PointInt (PointInt)> to_subtask_raster_coord(const rendering::Task& subtask) const {
+			CoordConverter sub_converter(subtask);
+			const Point kk = sub_converter.k_over_r_size.multiply_coords(ppu) - k_over_w_size;
+			auto conv = [kk](PointInt dr) -> PointInt {
+				PointInt sr;
+				sr[0] = dr[0] - kk[0];
+				sr[1] = dr[1] - kk[1];
+				return sr;
+			};
+			return conv;
+	}
+
+
+private:
+	Vector ppu, upp;
+	Vector k;
+	Vector k_over_w_size;
+	Vector k_over_r_size;
+	Vector w_size;
+	VectorInt r_size;
+};
 
 class TaskBevel: public rendering::Task
 {
@@ -262,73 +328,80 @@ public:
 
 	Vector offset, offset45;
 
-	// void set_coords_sub_tasks() override
-	// {
-	// 	synfig::error(__PRETTY_FUNCTION__);
-	// 	if (!sub_task(0)) {
-	// 		trunc_to_zero();
-	// 		return;
-	// 	}
-	// 	if (!is_valid_coords()) {
-	// 		sub_task(0)->set_coords_zero();
-	// 		return;
-	// 	}
+	void set_coords_sub_tasks() override
+	{
+		synfig::error(__PRETTY_FUNCTION__);
+		if (!sub_task(0)) {
+			trunc_to_zero();
+			return;
+		}
+		if (!is_valid_coords()) {
+			sub_task(0)->set_coords_zero();
+			return;
+		}
 
-	// 	const int w = target_rect.get_width();
-	// 	const int h = target_rect.get_height();
-	// 	const Real pw = get_units_per_pixel()[0];
-	// 	const Real ph = get_units_per_pixel()[1];
+		const int w = target_rect.get_width();
+		const int h = target_rect.get_height();
+		const Real pw = get_units_per_pixel()[0];
+		const Real ph = get_units_per_pixel()[1];
 
-	// 	const Vector size(softness,softness);
+		synfig::error("source rect:\nx %f y %f\nw %f %f", source_rect.minx, source_rect.miny, source_rect.get_width(), source_rect.get_height());
+		synfig::error("target rect:\nx %i y %i\nw %i %i", target_rect.minx, target_rect.miny, target_rect.get_width(), target_rect.get_height());
 
-	// 	//expand the working surface to accommodate the blur
+		const Vector size(softness,softness);
 
-	// 	//the expanded size = 1/2 the size in each direction rounded up
-	// 	int	halfsizex = (int) (std::fabs(size[0]*.5/pw) + 3),
-	// 		halfsizey = (int) (std::fabs(size[1]*.5/ph) + 3);
+		//expand the working surface to accommodate the blur
 
-	// 	const int offset_u(round_to_int(offset[0]/pw));
-	// 	const int offset_v(round_to_int(offset[1]/ph));
-	// 	const int offset_w(w+std::abs(offset_u)*2);
-	// 	const int offset_h(h+std::abs(offset_v)*2);
+		//the expanded size = 1/2 the size in each direction rounded up
+		int	halfsizex = (int) (std::fabs(size[0]*.5/pw) + 3),
+			halfsizey = (int) (std::fabs(size[1]*.5/ph) + 3);
 
-	// 	//expand by 1/2 size in each direction on either side
-	// 	switch(type)
-	// 	{
-	// 		case Blur::DISC:
-	// 		case Blur::BOX:
-	// 		case Blur::CROSS:
-	// 		case Blur::FASTGAUSSIAN:
-	// 		{
-	// 			halfsizex = std::max(1, halfsizex);
-	// 			halfsizey = std::max(1, halfsizey);
-	// 			break;
-	// 		}
-	// 		case Blur::GAUSSIAN:
-	// 		{
-	// 		#define GAUSSIAN_ADJUSTMENT		(0.05)
+		const int offset_u(round_to_int(offset[0]/pw));
+		const int offset_v(round_to_int(offset[1]/ph));
+		const int offset_w(w+std::abs(offset_u)*2);
+		const int offset_h(h+std::abs(offset_v)*2);
 
-	// 			Real pw2 = pw * pw;
-	// 			Real ph2 = ph * ph;
+		//expand by 1/2 size in each direction on either side
+		switch(type)
+		{
+			case Blur::DISC:
+			case Blur::BOX:
+			case Blur::CROSS:
+			case Blur::FASTGAUSSIAN:
+			{
+				halfsizex = std::max(1, halfsizex);
+				halfsizey = std::max(1, halfsizey);
+				break;
+			}
+			case Blur::GAUSSIAN:
+			{
+			#define GAUSSIAN_ADJUSTMENT		(0.05)
 
-	// 			halfsizex = (int)(size[0]*GAUSSIAN_ADJUSTMENT/std::fabs(pw2) + 0.5);
-	// 			halfsizey = (int)(size[1]*GAUSSIAN_ADJUSTMENT/std::fabs(ph2) + 0.5);
+				Real pw2 = pw * pw;
+				Real ph2 = ph * ph;
 
-	// 			halfsizex = (halfsizex + 1)/2;
-	// 			halfsizey = (halfsizey + 1)/2;
-	// 			break;
-	// 		}
-	// 	}
+				halfsizex = (int)(size[0]*GAUSSIAN_ADJUSTMENT/std::fabs(pw2) + 0.5);
+				halfsizey = (int)(size[1]*GAUSSIAN_ADJUSTMENT/std::fabs(ph2) + 0.5);
 
-	// 	Real delta_x = -offset_u - halfsizex;
-	// 	Real delta_y = -offset_v - halfsizey;
-	// 	Real new_w = offset_u + offset_w + 2*halfsizex;
-	// 	Real new_h = offset_v + offset_h + 2*halfsizey;
+				halfsizex = (halfsizex + 1)/2;
+				halfsizey = (halfsizey + 1)/2;
+				break;
+			}
+		}
 
-	// 	sub_task(0)->set_coords(Rect(source_rect.minx + pw*delta_x, source_rect.miny + ph*delta_y, pw*new_w, ph*new_h), VectorInt(new_w, new_h));
-	// 	synfig::error("dx %f dy %f\nw %f %f", delta_x, delta_y, new_w, new_h);
+		Real delta_x = -std::abs(offset_u) - halfsizex;
+		Real delta_y = -std::abs(offset_v) - halfsizey;
+		Real new_w = std::abs(offset_u) + offset_w + 2*halfsizex;
+		Real new_h = std::abs(offset_v) + offset_h + 2*halfsizey;
 
-	// }
+		Rect new_sub_source_rect(source_rect.minx + pw*delta_x, source_rect.miny + ph*delta_y, source_rect.minx + pw*delta_x + pw*new_w, source_rect.miny + ph*delta_y + ph*new_h);
+		sub_task(0)->set_coords(new_sub_source_rect, VectorInt(new_w, new_h));
+		synfig::error("Delta:\ndx %f dy %f\nw %f %f", delta_x, delta_y, new_w, new_h);
+		synfig::error("New subtask source rect:\nx %f y %f\nw %f %f", new_sub_source_rect.minx, new_sub_source_rect.miny, new_sub_source_rect.get_width(), new_sub_source_rect.get_height());
+
+		synfig::warning("subtask source rect:\nx %f y %f\nw %f %f", sub_task(0)->source_rect.minx, sub_task(0)->source_rect.miny, sub_task(0)->source_rect.get_width(), sub_task(0)->source_rect.get_height());
+		synfig::warning("subtask target rect:\nx %i y %i\nw %i %i", sub_task(0)->target_rect.minx, sub_task(0)->target_rect.miny, sub_task(0)->target_rect.get_width(), sub_task(0)->target_rect.get_height());
+	}
 };
 
 SYNFIG_EXPORT rendering::Task::Token TaskBevel::token(
@@ -344,17 +417,50 @@ public:
 	SYNFIG_EXPORT static Token token;
 	Token::Handle get_token() const override { return token.handle(); }
 
-	Rect calc_bounds() const override
-	{
-			synfig::warning("Calc bounds %s", sub_task(0) ? "y" : "n");
-		return sub_task(0) ? sub_task(0)->get_bounds() : Rect::zero(); // FIXME
-	}
+	// Rect calc_bounds() const override
+	// {
+	// 		synfig::warning("Calc bounds %s", sub_task(0) ? "y" : "n");
+	// 	return sub_task(0) ? sub_task(0)->get_bounds() : Rect::zero(); // FIXME
+	// }
 
 	bool run(RunParams&) const override {
 		if (!is_valid())
 			return true;
 		if (!sub_task(0))
 			return false;
+
+
+		Rect common_source_rect;
+		rect_set_intersect(common_source_rect, source_rect, sub_task(0)->source_rect);
+		if (!common_source_rect.is_valid())
+			return false;
+
+		CoordConverter conv(*this);
+		auto convert_to_raster_subtask = conv.to_subtask_raster_coord(*sub_task(0));
+
+		const PointInt target_min = conv.to_raster(common_source_rect.get_min());
+		const PointInt target_max = conv.to_raster(common_source_rect.get_max());
+
+		// LockWrite ldst(this);
+		// if (!ldst) return false;
+		// LockRead lsrc(sub_task(0));
+		// if (!lsrc) return false;
+
+		// const synfig::Surface& src = lsrc->get_surface();
+		// synfig::Surface& dst = ldst->get_surface();
+
+		// for(int y = target_min[1]; y < target_max[1]; ++y)
+		// {
+		// 	Color* cc = &dst[y][target_min[0]];
+		// 	for (int x = target_min[0]; x < target_max[0]; ++x, ++cc) {
+		// 		auto p = convert_to_raster_subtask(PointInt(x,y));
+		// 		*cc = src[p[1]][p[0]];
+		// 	}
+		// }
+		// return true;
+
+
+
 
 		Vector ppu = get_pixels_per_unit();
 
@@ -397,12 +503,12 @@ synfig::error("Sub ppu: %f, %f", sub_tasks[0]->get_pixels_per_unit()[0], sub_tas
 		const float u0(offset[0]/pw),   v0(offset[1]/ph);
 		const float u1(offset45[0]/pw), v1(offset45[1]/ph);
 
-		synfig::Surface::pen apen(la->get_surface().get_pen(target_rect.minx, target_rect.miny));
+		synfig::Surface::pen apen(la->get_surface().get_pen(target_min[0], target_min[1]));
 
-		int v = halfsizey+std::abs(offset_v);
-		for(int iy = target_rect.miny; iy < target_rect.maxy; ++iy, apen.inc_y(), apen.dec_x(tw), ++v) {
-			int u = halfsizex+std::abs(offset_u);
-			for(int ix = target_rect.minx; ix < target_rect.maxx; ++ix, apen.inc_x(), ++u) {
+		int v = halfsizey+std::abs(offset_v)/* + target_min[1]*/;
+		for(int iy = target_min[1]; iy < target_max[1]; ++iy, apen.inc_y(), apen.dec_x(target_max[0]-target_min[0]), ++v) {
+			int u = halfsizex+std::abs(offset_u)/* + target_min[0]*/;
+			for(int ix =target_min[0]; ix < target_max[0]; ++ix, apen.inc_x(), ++u) {
 
 				Real alpha(0);
 				Color shade;
@@ -430,9 +536,9 @@ synfig::error("Sub ppu: %f, %f", sub_tasks[0]->get_pixels_per_unit()[0], sub_tas
 				}
 
 				if (shade.get_a())
-					apen.put_value(shade);
+					la->get_surface()[iy][ix] = shade;	//apen.put_value(shade);
 				else
-					apen.put_value(Color::alpha());
+					la->get_surface()[iy][ix] = Color::alpha(); //apen.put_value(Color::alpha());
 			}
 		}
 		debug::DebugSurface::save_to_file(*la.get_surface(), filesystem::Path("cobra.tga"), true);
@@ -446,44 +552,65 @@ private:
 		if (!lb)
 			return false;
 
-		Vector ppu = get_pixels_per_unit();
-		Matrix transformation_matrix;
-		transformation_matrix.m00 = ppu[0];
-		transformation_matrix.m11 = ppu[1];
-		transformation_matrix.m20 = target_rect.minx - source_rect.minx*ppu[0];
-		transformation_matrix.m21 = target_rect.miny - source_rect.miny*ppu[1];
-		Matrix inv_transformation_matrix = transformation_matrix.get_inverted();
+		// Vector ppu = get_pixels_per_unit();
+		// Matrix transformation_matrix;
+		// transformation_matrix.m00 = ppu[0];
+		// transformation_matrix.m11 = ppu[1];
+		// transformation_matrix.m20 = target_rect.minx - source_rect.minx*ppu[0];
+		// transformation_matrix.m21 = target_rect.miny - source_rect.miny*ppu[1];
+		// Matrix inv_transformation_matrix = transformation_matrix.get_inverted();
 
-		Vector sub_ppu = sub_task(0)->get_pixels_per_unit();
-		Matrix sub_transformation_matrix;
-		sub_transformation_matrix.m00 = sub_ppu[0];
-		sub_transformation_matrix.m11 = sub_ppu[1];
-		sub_transformation_matrix.m20 = sub_task(0)->target_rect.minx - sub_task(0)->source_rect.minx*sub_ppu[0];
-		sub_transformation_matrix.m21 = sub_task(0)->target_rect.miny - sub_task(0)->source_rect.miny*sub_ppu[1];
+		// Vector sub_ppu = sub_task(0)->get_pixels_per_unit();
+		// Matrix sub_transformation_matrix;
+		// sub_transformation_matrix.m00 = sub_ppu[0];
+		// sub_transformation_matrix.m11 = sub_ppu[1];
+		// sub_transformation_matrix.m20 = sub_task(0)->target_rect.minx - sub_task(0)->source_rect.minx*sub_ppu[0];
+		// sub_transformation_matrix.m21 = sub_task(0)->target_rect.miny - sub_task(0)->source_rect.miny*sub_ppu[1];
 
-		sub_transformation_matrix *= inv_transformation_matrix;
+		// sub_transformation_matrix *= inv_transformation_matrix;
 
-		const RectInt& rect = target_rect;
-		const int rect_w = rect.get_width();
+		// Rect common_source_rect;
+		// rect_set_intersect(common_source_rect, source_rect, sub_task(0)->source_rect);
+		// if (!common_source_rect.is_valid())
+		// 	return false;
+		// const Rect rectf(transformation_matrix.get_transformed(common_source_rect.get_min()), transformation_matrix.get_transformed(common_source_rect.get_max()));
+		// const RectInt rect(rectf.minx, rectf.miny, rectf.maxx, rectf.maxy);
+		// const int rect_w = rect.get_width();
 
-		const Vector sub_rect_min = sub_transformation_matrix.get_transformed({target_rect.get_min()[0], target_rect.get_min()[1]});
-		synfig::Surface::const_alpha_pen bpen(lb->get_surface().get_pen(sub_rect_min[0], sub_rect_min[1]));
+		// const Vector sub_rect_min = sub_transformation_matrix.get_transformed({rect.get_min()[0], rect.get_min()[1]});
+		// synfig::Surface::const_alpha_pen bpen(lb->get_surface().get_pen(sub_rect_min[0], sub_rect_min[1]));
+		const Surface& context = lb->get_surface();
 		synfig::surface<float>& alpha_surface = output;
-		alpha_surface.set_wh(rect.get_width(), rect.get_height());
+		alpha_surface.set_wh(context.get_w(), context.get_h());
 		if (!use_luma) {
-			for (int iy = rect.miny; iy < rect.maxy; ++iy, bpen.inc_y(), bpen.dec_x(rect_w)) {
-				for (int ix = rect.minx; ix < rect.maxx; ++ix, bpen.inc_x()) {
-					alpha_surface[iy][ix] = bpen.get_value().get_a();
+			for (int y = 0; y < context.get_h(); ++y) {
+				for (int x = 0; x < context.get_w(); ++x) {
+					alpha_surface[y][x] = context[y][x].get_a();
 				}
 			}
 		} else {
-			for (int iy = rect.miny; iy < rect.maxy; ++iy, bpen.inc_y(), bpen.dec_x(rect_w)) {
-				for (int ix = rect.minx; ix < rect.maxx; ++ix, bpen.inc_x()) {
-					auto value = bpen.get_value();
-					alpha_surface[iy][ix] = value.get_a() * value.get_y();
+			for (int y = 0; y < context.get_h(); ++y) {
+				for (int x = 0; x < context.get_w(); ++x) {
+					const auto& value = context[y][x];
+					alpha_surface[y][x] = value.get_a() * value.get_y();
 				}
 			}
 		}
+		// alpha_surface.set_wh(rect.get_width(), rect.get_height());
+		// if (!use_luma) {
+		// 	for (int iy = 0, sy = sub_rect_min[1]; iy < rect.get_height(); ++iy, ++sy, bpen.inc_y(), bpen.dec_x(rect_w)) {
+		// 		for (int ix = 0, sx = sub_rect_min[0]; ix < rect.get_width(); ++ix, ++sx, bpen.inc_x()) {
+		// 			alpha_surface[iy][ix] = context[sy][sx].get_a();
+		// 		}
+		// 	}
+		// } else {
+		// 	for (int iy = 0, sy = sub_rect_min[1]; iy < rect.get_height(); ++iy, ++sy, bpen.inc_y(), bpen.dec_x(rect_w)) {
+		// 		for (int ix = 0, sx = sub_rect_min[0]; ix < rect.get_width(); ++ix, ++sx, bpen.inc_x()) {
+		// 			const auto& value = context[sy][sx];
+		// 			alpha_surface[iy][ix] = value.get_a() * value.get_y();
+		// 		}
+		// 	}
+		// }
 		save_float_surface(alpha_surface, filesystem::Path("alpha-cobra.tga"), true);
 		return true;
 	}
@@ -498,7 +625,7 @@ Layer_Bevel::accelerated_render(Context context,Surface *surface,int quality, co
 	RENDER_TRANSFORMED_IF_NEED(__FILE__, __LINE__)
 
 	Real softness=param_softness.get(Real());
-	int type=param_type.get(int());
+	const int type=param_type.get(int());
 	Color color1=param_color1.get(Color());
 	Color color2=param_color2.get(Color());
 	bool use_luma=param_use_luma.get(bool());
