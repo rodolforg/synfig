@@ -272,9 +272,6 @@ public:
 		const Real pw = get_units_per_pixel()[0];
 		const Real ph = get_units_per_pixel()[1];
 
-		synfig::error("source rect:\nx %f y %f\nw %f %f", source_rect.minx, source_rect.miny, source_rect.get_width(), source_rect.get_height());
-		synfig::error("target rect:\nx %i y %i\nw %i %i", target_rect.minx, target_rect.miny, target_rect.get_width(), target_rect.get_height());
-
 		const Vector size(softness,softness);
 
 		//expand the working surface to accommodate the blur
@@ -323,11 +320,6 @@ public:
 
 		Rect new_sub_source_rect(source_rect.minx + pw*delta_x, source_rect.miny + ph*delta_y, source_rect.minx + pw*delta_x + pw*new_w, source_rect.miny + ph*delta_y + ph*new_h);
 		sub_task(0)->set_coords(new_sub_source_rect, VectorInt(new_w, new_h));
-		synfig::error("Delta:\ndx %f dy %f\nw %f %f", delta_x, delta_y, new_w, new_h);
-		synfig::error("New subtask source rect:\nx %f y %f\nw %f %f", new_sub_source_rect.minx, new_sub_source_rect.miny, new_sub_source_rect.get_width(), new_sub_source_rect.get_height());
-
-		synfig::warning("subtask source rect:\nx %f y %f\nw %f %f", sub_task(0)->source_rect.minx, sub_task(0)->source_rect.miny, sub_task(0)->source_rect.get_width(), sub_task(0)->source_rect.get_height());
-		synfig::warning("subtask target rect:\nx %i y %i\nw %i %i", sub_task(0)->target_rect.minx, sub_task(0)->target_rect.miny, sub_task(0)->target_rect.get_width(), sub_task(0)->target_rect.get_height());
 	}
 };
 
@@ -343,12 +335,6 @@ public:
 	typedef etl::handle<TaskBevel> Handle;
 	SYNFIG_EXPORT static Token token;
 	Token::Handle get_token() const override { return token.handle(); }
-
-	// Rect calc_bounds() const override
-	// {
-	// 		synfig::warning("Calc bounds %s", sub_task(0) ? "y" : "n");
-	// 	return sub_task(0) ? sub_task(0)->get_bounds() : Rect::zero(); // FIXME
-	// }
 
 	bool run(RunParams&) const override {
 		if (!is_valid())
@@ -400,7 +386,6 @@ synfig::error("Sub source: %f, %f  ->  %f, %f", sub_tasks[0]->source_rect.get_mi
 synfig::error("ppu: %f, %f", get_pixels_per_unit()[0], get_pixels_per_unit()[1]);
 synfig::error("Sub ppu: %f, %f", sub_tasks[0]->get_pixels_per_unit()[0], sub_tasks[0]->get_pixels_per_unit()[1]);
 
-		int tw = target_rect.get_width();
 		LockWrite la(this);
 		if (!la)
 			return false;
@@ -430,12 +415,10 @@ synfig::error("Sub ppu: %f, %f", sub_tasks[0]->get_pixels_per_unit()[0], sub_tas
 		const float u0(offset[0]/pw),   v0(offset[1]/ph);
 		const float u1(offset45[0]/pw), v1(offset45[1]/ph);
 
-		synfig::Surface::pen apen(la->get_surface().get_pen(target_min[0], target_min[1]));
-
 		int v = halfsizey+std::abs(offset_v) + target_min[1];
-		for(int iy = target_min[1]; iy < target_max[1]; ++iy, apen.inc_y(), apen.dec_x(target_max[0]-target_min[0]), ++v) {
+		for(int iy = target_min[1]; iy < target_max[1]; ++iy, ++v) {
 			int u = halfsizex+std::abs(offset_u) + target_min[0];
-			for(int ix =target_min[0]; ix < target_max[0]; ++ix, apen.inc_x(), ++u) {
+			for(int ix =target_min[0]; ix < target_max[0]; ++ix, ++u) {
 
 				Real alpha(0);
 				Color shade;
@@ -463,9 +446,9 @@ synfig::error("Sub ppu: %f, %f", sub_tasks[0]->get_pixels_per_unit()[0], sub_tas
 				}
 
 				if (shade.get_a())
-					la->get_surface()[iy][ix] = shade;	//apen.put_value(shade);
+					la->get_surface()[iy][ix] = shade;
 				else
-					la->get_surface()[iy][ix] = Color::alpha(); //apen.put_value(Color::alpha());
+					la->get_surface()[iy][ix] = Color::alpha();
 			}
 		}
 		debug::DebugSurface::save_to_file(*la.get_surface(), filesystem::Path("cobra.tga"), true);
@@ -496,16 +479,7 @@ private:
 
 		// sub_transformation_matrix *= inv_transformation_matrix;
 
-		// Rect common_source_rect;
-		// rect_set_intersect(common_source_rect, source_rect, sub_task(0)->source_rect);
-		// if (!common_source_rect.is_valid())
-		// 	return false;
-		// const Rect rectf(transformation_matrix.get_transformed(common_source_rect.get_min()), transformation_matrix.get_transformed(common_source_rect.get_max()));
-		// const RectInt rect(rectf.minx, rectf.miny, rectf.maxx, rectf.maxy);
-		// const int rect_w = rect.get_width();
 
-		// const Vector sub_rect_min = sub_transformation_matrix.get_transformed({rect.get_min()[0], rect.get_min()[1]});
-		// synfig::Surface::const_alpha_pen bpen(lb->get_surface().get_pen(sub_rect_min[0], sub_rect_min[1]));
 		const Surface& context = lb->get_surface();
 		synfig::surface<float>& alpha_surface = output;
 		alpha_surface.set_wh(context.get_w(), context.get_h());
@@ -523,21 +497,7 @@ private:
 				}
 			}
 		}
-		// alpha_surface.set_wh(rect.get_width(), rect.get_height());
-		// if (!use_luma) {
-		// 	for (int iy = 0, sy = sub_rect_min[1]; iy < rect.get_height(); ++iy, ++sy, bpen.inc_y(), bpen.dec_x(rect_w)) {
-		// 		for (int ix = 0, sx = sub_rect_min[0]; ix < rect.get_width(); ++ix, ++sx, bpen.inc_x()) {
-		// 			alpha_surface[iy][ix] = context[sy][sx].get_a();
-		// 		}
-		// 	}
-		// } else {
-		// 	for (int iy = 0, sy = sub_rect_min[1]; iy < rect.get_height(); ++iy, ++sy, bpen.inc_y(), bpen.dec_x(rect_w)) {
-		// 		for (int ix = 0, sx = sub_rect_min[0]; ix < rect.get_width(); ++ix, ++sx, bpen.inc_x()) {
-		// 			const auto& value = context[sy][sx];
-		// 			alpha_surface[iy][ix] = value.get_a() * value.get_y();
-		// 		}
-		// 	}
-		// }
+
 		save_float_surface(alpha_surface, filesystem::Path("alpha-cobra.tga"), true);
 		return true;
 	}
