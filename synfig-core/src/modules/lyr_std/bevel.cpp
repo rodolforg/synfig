@@ -40,7 +40,6 @@
 
 #include <synfig/blur.h>
 #include <synfig/context.h>
-#include <synfig/rendering/common/task/tasktransformation.h>
 
 #endif
 
@@ -165,7 +164,10 @@ Layer_Bevel::get_color(Context context, const Point &pos)const
 	return Color::blend(shade,context.get_color(pos),get_amount(),get_blend_method());
 }
 
-class TaskBevel: public rendering::Task, rendering::TaskInterfaceTransformationPass
+// TaskBevel performs Blur internally, and the behavior of
+// applying skew transformation before or after the blur is not the same.
+// Therefore, we can't inherit synfig::rendering::TaskInterfaceTransformationPass here
+class TaskBevel: public rendering::Task//, rendering::TaskInterfaceTransformationPass
 {
 public:
 	typedef etl::handle<TaskBevel> Handle;
@@ -297,6 +299,7 @@ public:
 		const float u0(offset[0]/pw),   v0(offset[1]/ph);
 		const float u1(offset45[0]/pw), v1(offset45[1]/ph);
 
+		// convert vector-coordinates to raster-coordinates (i.e. source rect to target rect)
 		Matrix transformation_matrix;
 		transformation_matrix.m00 = ppu[0];
 		transformation_matrix.m11 = ppu[1];
