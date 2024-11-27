@@ -164,69 +164,6 @@ Layer_Bevel::get_color(Context context, const Point &pos)const
 	return Color::blend(shade,context.get_color(pos),get_amount(),get_blend_method());
 }
 
-struct CoordConverter {
-	CoordConverter(const rendering::Task& task)
-		: ppu(task.get_pixels_per_unit()),
-		upp(task.get_units_per_pixel())
-	{
-			const Rect& source = task.source_rect;
-			const RectInt& target = task.target_rect;
-			k[0] = source.get_min()[0] * target.get_max()[0] - source.get_max()[0] * target.get_min()[0];
-			k[1] = source.get_min()[1] * target.get_max()[1] - source.get_max()[1] * target.get_min()[1];
-
-			w_size = source.get_size();
-			r_size = target.get_size();
-
-			k_over_w_size = k.divide_coords(source.get_size());
-			k_over_r_size[0] = k[0] / target.get_size()[0];
-			k_over_r_size[1] = k[1] / target.get_size()[1];
-	}
-
-	PointInt to_raster(Point p)
-	{
-			Point q = p.multiply_coords(ppu) - k_over_w_size;
-			return {round(q[0]), round(q[1])};
-	}
-
-	Point to_world(PointInt p)
-	{
-			return Point(p[0], p[1]).multiply_coords(upp) + k_over_w_size;
-	}
-
-	std::function<PointInt (PointInt)> from_subtask_raster_coord(const rendering::Task& subtask) const {
-			CoordConverter sub_converter(subtask);
-			const Point kk = sub_converter.k_over_r_size.multiply_coords(ppu) - k_over_w_size;
-			auto conv = [kk](PointInt sr) -> PointInt {
-				PointInt dr;
-				dr[0] = sr[0] + kk[0];
-				dr[1] = sr[1] + kk[1];
-				return dr;
-			};
-			return conv;
-	}
-
-	std::function<PointInt (PointInt)> to_subtask_raster_coord(const rendering::Task& subtask) const {
-			CoordConverter sub_converter(subtask);
-			const Point kk = sub_converter.k_over_r_size.multiply_coords(ppu) - k_over_w_size;
-			auto conv = [kk](PointInt dr) -> PointInt {
-				PointInt sr;
-				sr[0] = dr[0] - kk[0];
-				sr[1] = dr[1] - kk[1];
-				return sr;
-			};
-			return conv;
-	}
-
-
-private:
-	Vector ppu, upp;
-	Vector k;
-	Vector k_over_w_size;
-	Vector k_over_r_size;
-	Vector w_size;
-	VectorInt r_size;
-};
-
 class TaskBevel: public rendering::Task
 {
 public:
@@ -245,7 +182,6 @@ public:
 
 	void set_coords_sub_tasks() override
 	{
-		synfig::error(__PRETTY_FUNCTION__);
 		if (!sub_task(0)) {
 			trunc_to_zero();
 			return;
@@ -330,49 +266,10 @@ public:
 		if (!sub_task(0))
 			return false;
 
-
 		Rect common_source_rect;
 		rect_set_intersect(common_source_rect, source_rect, sub_task(0)->source_rect);
 		if (!common_source_rect.is_valid())
 			return false;
-
-		CoordConverter conv(*this);
-		auto convert_to_raster_subtask = conv.to_subtask_raster_coord(*sub_task(0));
-
-		const PointInt target_min = conv.to_raster(common_source_rect.get_min());
-		const PointInt target_max = conv.to_raster(common_source_rect.get_max());
-
-		// LockWrite ldst(this);
-		// if (!ldst) return false;
-		// LockRead lsrc(sub_task(0));
-		// if (!lsrc) return false;
-
-		// const synfig::Surface& src = lsrc->get_surface();
-		// synfig::Surface& dst = ldst->get_surface();
-
-		// for(int y = target_min[1]; y < target_max[1]; ++y)
-		// {
-		// 	Color* cc = &dst[y][target_min[0]];
-		// 	for (int x = target_min[0]; x < target_max[0]; ++x, ++cc) {
-		// 		auto p = convert_to_raster_subtask(PointInt(x,y));
-		// 		*cc = src[p[1]][p[0]];
-		// 	}
-		// }
-		// return true;
-
-
-
-
-		Vector ppu = get_pixels_per_unit();
-
-synfig::error("Target: %i, %i  ->  %i, %i", target_rect.get_min()[0], target_rect.get_min()[1], target_rect.get_max()[0], target_rect.get_max()[1]);
-synfig::error("Sub Target: %i, %i  ->  %i, %i", sub_tasks[0]->target_rect.get_min()[0], sub_tasks[0]->target_rect.get_min()[1], sub_tasks[0]->target_rect.get_max()[0], sub_tasks[0]->target_rect.get_max()[1]);
-
-synfig::error("Source: %f, %f  ->  %f, %f", source_rect.get_min()[0], source_rect.get_min()[1], source_rect.get_max()[0], source_rect.get_max()[1]);
-synfig::error("Sub source: %f, %f  ->  %f, %f", sub_tasks[0]->source_rect.get_min()[0], sub_tasks[0]->source_rect.get_min()[1], sub_tasks[0]->source_rect.get_max()[0], sub_tasks[0]->source_rect.get_max()[1]);
-
-synfig::error("ppu: %f, %f", get_pixels_per_unit()[0], get_pixels_per_unit()[1]);
-synfig::error("Sub ppu: %f, %f", sub_tasks[0]->get_pixels_per_unit()[0], sub_tasks[0]->get_pixels_per_unit()[1]);
 
 		LockWrite la(this);
 		if (!la)
@@ -387,10 +284,9 @@ synfig::error("Sub ppu: %f, %f", sub_tasks[0]->get_pixels_per_unit()[0], sub_tas
 			get_alpha_surface(alpha_surface);
 			//blur the image
 			Blur(size, type)(alpha_surface, sub_task(0)->source_rect.get_size(), blurred); //source_rect??
-			synfig::error("Alpha size: %i, %i", alpha_surface.get_w(), alpha_surface.get_h());
-			synfig::error("Blurred size: %i, %i", blurred.get_w(), blurred.get_h());
 		}
 
+		const Vector ppu = get_pixels_per_unit();
 		const Real pw = 1/ppu[0];
 		const Real ph = 1/ppu[1];
 		const int halfsizex = (int) (std::fabs(size[0]*.5/pw) + 3);
@@ -400,6 +296,17 @@ synfig::error("Sub ppu: %f, %f", sub_tasks[0]->get_pixels_per_unit()[0], sub_tas
 
 		const float u0(offset[0]/pw),   v0(offset[1]/ph);
 		const float u1(offset45[0]/pw), v1(offset45[1]/ph);
+
+		Matrix transformation_matrix;
+		transformation_matrix.m00 = ppu[0];
+		transformation_matrix.m11 = ppu[1];
+		transformation_matrix.m20 = target_rect.minx - source_rect.minx*ppu[0];
+		transformation_matrix.m21 = target_rect.miny - source_rect.miny*ppu[1];
+
+		const Point ftarget_min = transformation_matrix.get_transformed(common_source_rect.get_min());
+		const Point ftarget_max = transformation_matrix.get_transformed(common_source_rect.get_max());
+		const PointInt target_min = {ftarget_min[0], ftarget_min[1]};
+		const PointInt target_max = {ftarget_max[0], ftarget_max[1]};
 
 		int v = halfsizey+std::abs(offset_v) + target_min[1];
 		for(int iy = target_min[1]; iy < target_max[1]; ++iy, ++v) {
@@ -446,24 +353,6 @@ private:
 		LockRead lb(sub_tasks[0]);
 		if (!lb)
 			return false;
-
-		// Vector ppu = get_pixels_per_unit();
-		// Matrix transformation_matrix;
-		// transformation_matrix.m00 = ppu[0];
-		// transformation_matrix.m11 = ppu[1];
-		// transformation_matrix.m20 = target_rect.minx - source_rect.minx*ppu[0];
-		// transformation_matrix.m21 = target_rect.miny - source_rect.miny*ppu[1];
-		// Matrix inv_transformation_matrix = transformation_matrix.get_inverted();
-
-		// Vector sub_ppu = sub_task(0)->get_pixels_per_unit();
-		// Matrix sub_transformation_matrix;
-		// sub_transformation_matrix.m00 = sub_ppu[0];
-		// sub_transformation_matrix.m11 = sub_ppu[1];
-		// sub_transformation_matrix.m20 = sub_task(0)->target_rect.minx - sub_task(0)->source_rect.minx*sub_ppu[0];
-		// sub_transformation_matrix.m21 = sub_task(0)->target_rect.miny - sub_task(0)->source_rect.miny*sub_ppu[1];
-
-		// sub_transformation_matrix *= inv_transformation_matrix;
-
 
 		const Surface& context = lb->get_surface();
 		synfig::surface<float>& alpha_surface = output;
