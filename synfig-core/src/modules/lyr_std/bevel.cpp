@@ -41,8 +41,6 @@
 #include <synfig/blur.h>
 #include <synfig/context.h>
 
-#include "synfig/debug/debugsurface.h"
-
 #endif
 
 /* === U S I N G =========================================================== */
@@ -60,16 +58,6 @@ SYNFIG_LAYER_SET_CATEGORY(Layer_Bevel,N_("Stylize"));
 SYNFIG_LAYER_SET_VERSION(Layer_Bevel,"0.2");
 
 /* === P R O C E D U R E S ================================================= */
-
-static void
-save_float_surface(const surface<float>& float_surface, const filesystem::Path& filename, bool overwrite)
-{
-	synfig::Surface	color_surface(float_surface.get_w(), float_surface.get_h());
-	for(int j=0;j<color_surface.get_h();j++)
-		for(int i=0;i<color_surface.get_w();i++)
-			color_surface[j][i] = Color(1,1,1,float_surface[j][i]);
-	debug::DebugSurface::save_to_file(color_surface, filename, overwrite);
-}
 
 /* === M E T H O D S ======================================================= */
 
@@ -403,8 +391,6 @@ synfig::error("Sub ppu: %f, %f", sub_tasks[0]->get_pixels_per_unit()[0], sub_tas
 			synfig::error("Blurred size: %i, %i", blurred.get_w(), blurred.get_h());
 		}
 
-		save_float_surface(blurred, filesystem::Path("blurred-cobra.tga"), true);
-
 		const Real pw = 1/ppu[0];
 		const Real ph = 1/ppu[1];
 		const int halfsizex = (int) (std::fabs(size[0]*.5/pw) + 3);
@@ -451,7 +437,6 @@ synfig::error("Sub ppu: %f, %f", sub_tasks[0]->get_pixels_per_unit()[0], sub_tas
 					la->get_surface()[iy][ix] = Color::alpha();
 			}
 		}
-		debug::DebugSurface::save_to_file(*la.get_surface(), filesystem::Path("cobra.tga"), true);
 		return true;
 	}
 
@@ -498,7 +483,6 @@ private:
 			}
 		}
 
-		save_float_surface(alpha_surface, filesystem::Path("alpha-cobra.tga"), true);
 		return true;
 	}
 };
