@@ -85,8 +85,6 @@ Layer_Bevel::Layer_Bevel():
 	calc_offset();
 	param_use_luma=ValueBase(false);
 	param_solid=ValueBase(false);
-	param_cobra=ValueBase(true);
-	param_overlay_only=ValueBase(false);
 
 	SET_INTERPOLATION_DEFAULTS();
 	SET_STATIC_DEFAULTS();
@@ -122,8 +120,6 @@ Layer_Bevel::set_param(const String &param, const ValueBase &value)
 	IMPORT_VALUE(param_type);
 	IMPORT_VALUE(param_use_luma);
 	IMPORT_VALUE(param_solid);
-	IMPORT_VALUE(param_cobra);
-	IMPORT_VALUE(param_overlay_only);
 	if (param == "fake_origin")
 		return true;
 
@@ -141,8 +137,6 @@ Layer_Bevel::get_param(const String &param)const
 	EXPORT_VALUE(param_angle);
 	EXPORT_VALUE(param_use_luma);
 	EXPORT_VALUE(param_solid);
-	EXPORT_VALUE(param_cobra);
-	EXPORT_VALUE(param_overlay_only);
 	if (param == "fake_origin")
 	{
 		return Vector();
@@ -181,73 +175,6 @@ Layer_Bevel::get_color(Context context, const Point &pos)const
 
 	return Color::blend(shade,context.get_color(pos),get_amount(),get_blend_method());
 }
-
-RendDesc
-Layer_Bevel::get_sub_renddesc_vfunc(const RendDesc &renddesc) const
-{
-	Real softness=param_softness.get(Real());
-	int type=param_type.get(int());
-
-	const int	w = renddesc.get_w(),
-				h = renddesc.get_h();
-	const Real	pw = renddesc.get_pw(),
-				ph = renddesc.get_ph();
-	const Vector size(softness,softness);
-
-	RendDesc workdesc(renddesc);
-
-	//expand the working surface to accommodate the blur
-
-	//the expanded size = 1/2 the size in each direction rounded up
-	int	halfsizex = (int) (std::fabs(size[0]*.5/pw) + 3),
-		halfsizey = (int) (std::fabs(size[1]*.5/ph) + 3);
-
-	int offset_u(round_to_int(offset[0]/pw)),offset_v(round_to_int(offset[1]/ph));
-	int offset_w(w+std::abs(offset_u)*2),offset_h(h+std::abs(offset_v)*2);
-
-	workdesc.set_subwindow(
-		-std::abs(offset_u),
-		-std::abs(offset_v),
-		w+std::abs(offset_u),
-		h+std::abs(offset_v)
-	);
-
-	//expand by 1/2 size in each direction on either side
-	switch(type)
-	{
-		case Blur::DISC:
-		case Blur::BOX:
-		case Blur::CROSS:
-		case Blur::FASTGAUSSIAN:
-		{
-			halfsizex = std::max(1, halfsizex);
-			halfsizey = std::max(1, halfsizey);
-			break;
-		}
-		case Blur::GAUSSIAN:
-		{
-		#define GAUSSIAN_ADJUSTMENT		(0.05)
-			Real pw = workdesc.get_pw();
-			Real ph = workdesc.get_ph();
-
-			Real pw2 = pw * pw;
-			Real ph2 = ph * ph;
-
-			halfsizex = (int)(size[0]*GAUSSIAN_ADJUSTMENT/std::fabs(pw2) + 0.5);
-			halfsizey = (int)(size[1]*GAUSSIAN_ADJUSTMENT/std::fabs(ph2) + 0.5);
-
-			halfsizex = (halfsizex + 1)/2;
-			halfsizey = (halfsizey + 1)/2;
-			break;
-		}
-	}
-
-	workdesc.set_subwindow( -halfsizex, -halfsizey, offset_w + 2*halfsizex, offset_h + 2*halfsizey );
-	synfig::warning("Original RendDesc:\nx %f y %f\nw %i h %i", renddesc.get_tl()[0], renddesc.get_tl()[1], renddesc.get_w(), renddesc.get_h());
-	synfig::warning("Changed RendDesc:\nx %f y %f\nw %i h %i", workdesc.get_tl()[0], workdesc.get_tl()[1], workdesc.get_w(), workdesc.get_h());
-	return workdesc;
-}
-
 
 struct CoordConverter {
 	CoordConverter(const rendering::Task& task)
@@ -619,165 +546,6 @@ private:
 SYNFIG_EXPORT rendering::Task::Token TaskBevelSW::token(
 	DescReal<TaskBevelSW, TaskBevel>("BevelSW") );
 
-bool
-Layer_Bevel::accelerated_render(Context context,Surface *surface,int quality, const RendDesc &renddesc, ProgressCallback *cb)const
-{
-	RENDER_TRANSFORMED_IF_NEED(__FILE__, __LINE__)
-
-	Real softness=param_softness.get(Real());
-	const int type=param_type.get(int());
-	Color color1=param_color1.get(Color());
-	Color color2=param_color2.get(Color());
-	bool use_luma=param_use_luma.get(bool());
-	bool solid=param_solid.get(bool());
-	bool overlay_only = param_overlay_only.get(bool());
-
-	int x,y;
-	SuperCallback stageone(cb,0,5000,10000);
-	SuperCallback stagetwo(cb,5000,10000,10000);
-
-	RendDesc	workdesc = get_sub_renddesc(renddesc);
-	Surface		worksurface;
-	synfig::surface<float> alpha_surface, blurred;
-
-	const Real	pw = renddesc.get_pw(),
-				ph = renddesc.get_ph();
-	const Vector size(softness,softness);
-
-	int	halfsizex = (int) (std::fabs(size[0]*.5/pw) + 3),
-		halfsizey = (int) (std::fabs(size[1]*.5/ph) + 3);
-
-	int offset_u(round_to_int(offset[0]/pw)),offset_v(round_to_int(offset[1]/ph));
-
-	//callbacks depend on how long the blur takes
-	if(size[0] || size[1])
-	{
-		if(type == Blur::DISC)
-		{
-			stageone = SuperCallback(cb,0,5000,10000);
-			stagetwo = SuperCallback(cb,5000,10000,10000);
-		}
-		else
-		{
-			stageone = SuperCallback(cb,0,9000,10000);
-			stagetwo = SuperCallback(cb,9000,10000,10000);
-		}
-	}
-	else
-	{
-		stageone = SuperCallback(cb,0,9999,10000);
-		stagetwo = SuperCallback(cb,9999,10000,10000);
-	}
-
-	switch(type)
-	{
-		case Blur::GAUSSIAN:
-		{
-			Real pw = workdesc.get_pw();
-			Real ph = workdesc.get_ph();
-
-			Real pw2 = pw * pw;
-			Real ph2 = ph * ph;
-
-			halfsizex = (int)(size[0]*GAUSSIAN_ADJUSTMENT/std::fabs(pw2) + 0.5);
-			halfsizey = (int)(size[1]*GAUSSIAN_ADJUSTMENT/std::fabs(ph2) + 0.5);
-
-			halfsizex = (halfsizex + 1)/2;
-			halfsizey = (halfsizey + 1)/2;
-
-			break;
-		}
-	}
-
-	//render the background onto the expanded surface
-	if(!context.accelerated_render(&worksurface,quality,workdesc,&stageone))
-		return false;
-
-	// Copy over the alpha
-	alpha_surface.set_wh(worksurface.get_w(), worksurface.get_h());
-	if(!use_luma)
-	{
-		for(int j=0;j<worksurface.get_h();j++)
-			for(int i=0;i<worksurface.get_w();i++)
-			{
-				alpha_surface[j][i] = worksurface[j][i].get_a();
-			}
-	}
-	else
-	{
-		for(int j=0;j<worksurface.get_h();j++)
-			for(int i=0;i<worksurface.get_w();i++)
-			{
-				alpha_surface[j][i] = worksurface[j][i].get_a() * worksurface[j][i].get_y();
-			}
-	}
-	save_float_surface(alpha_surface, filesystem::Path("alpha-accel.tga"), true);
-
-	//blur the image
-	Blur(size, type, &stagetwo)(alpha_surface, workdesc.get_br()-workdesc.get_tl(), blurred);
-
-	save_float_surface(blurred, filesystem::Path("blurred-accel.tga"), true);
-	//be sure the surface is of the correct size
-	surface->set_wh(renddesc.get_w(),renddesc.get_h());
-
-	const float u0(offset[0]/pw),   v0(offset[1]/ph);
-	const float u1(offset45[0]/pw), v1(offset45[1]/ph);
-
-	const float amount = get_amount();
-	const Color::BlendMethod blend_method = get_blend_method();
-
-	int v = halfsizey+std::abs(offset_v);
-	for(y=0;y<renddesc.get_h();y++,v++)
-	{
-		int u = halfsizex+std::abs(offset_u);
-		for(x=0;x<renddesc.get_w();x++,u++)
-		{
-			Real alpha(0);
-			Color shade;
-
-			alpha += -blurred.linear_sample(u+u0, v+v0);
-			alpha -= -blurred.linear_sample(u-u0, v-v0);
-			alpha += -blurred.linear_sample(u+u1, v+v1)*0.5f;
-			alpha += -blurred.linear_sample(u+v1, v-u1)*0.5f;
-			alpha -= -blurred.linear_sample(u-u1, v-v1)*0.5f;
-			alpha -= -blurred.linear_sample(u-v1, v+u1)*0.5f;
-
-			if(solid)
-			{
-				alpha/=4.0f;
-				alpha+=0.5f;
-				shade=Color::blend(color1,color2,alpha,Color::BLEND_STRAIGHT);
-			}
-			else
-			{
-				alpha/=2;
-				if(alpha>0)
-					shade=color1,shade.set_a(shade.get_a()*alpha);
-				else
-					shade=color2,shade.set_a(shade.get_a()*-alpha);
-			}
-
-
-
-			if(shade.get_a())
-			{
-				(*surface)[y][x] = overlay_only ? shade : Color::blend(shade, worksurface[v][u], amount, blend_method);
-			}
-			else (*surface)[y][x] = overlay_only ? Color::alpha() : worksurface[v][u];
-		}
-	}
-	debug::DebugSurface::save_to_file(*surface, filesystem::Path("accel.tga"), true);
-
-	if(cb && !cb->amount_complete(10000,10000))
-	{
-		//if(cb)cb->error(strprintf(__FILE__"%d: Accelerated Renderer Failure",__LINE__));
-		return false;
-	}
-
-	return true;
-}
-
-
 ////
 
 Layer::Vocab
@@ -822,15 +590,6 @@ Layer_Bevel::get_param_vocab(void)const
 	);
 	ret.push_back(ParamDesc("solid")
 		.set_local_name(_("Solid"))
-	);
-
-	ret.push_back(ParamDesc("cobra")
-		.set_local_name(_("Cobra Engine"))
-	);
-
-	ret.push_back(ParamDesc("overlay_only")
-		.set_local_name(_("Overlay only"))
-		.set_description(_("Do not render this layer context"))
 	);
 
 	ret.push_back(ParamDesc("fake_origin")
@@ -878,16 +637,4 @@ Layer_Bevel::build_composite_fork_task_vfunc(ContextParams /*context_params*/, r
 	task_bevel->sub_task(0) = sub_task;
 
 	return task_bevel;
-}
-
-rendering::Task::Handle
-Layer_Bevel::build_rendering_task_vfunc(Context context) const
-{
-	if (!param_cobra.get(bool()))
-		return Layer::build_rendering_task_vfunc(context);
-
-	if (!param_overlay_only.get(bool()))
-		return Layer_CompositeFork::build_rendering_task_vfunc(context);
-
-	return build_composite_fork_task_vfunc(context.get_params(), context.build_rendering_task());
 }

@@ -62,14 +62,8 @@ private:
 	//!Parameter: (bool) solid
 	ValueBase param_solid;
 
-	//!Parameter: (bool) cobra engine
-	ValueBase param_cobra;
-	//!Parameter: (bool) overlay only, do not compose
-	ValueBase param_overlay_only;
-
 	Vector	offset;
 	Vector	offset45;
-
 
 	void calc_offset();
 public:
@@ -81,16 +75,12 @@ public:
 
 	Color get_color(Context context, const Point& pos) const override;
 
-	bool accelerated_render(Context context, Surface* surface, int quality, const RendDesc& renddesc, ProgressCallback* cb) const override;
-
 	Rect get_full_bounding_rect(Context context) const override;
 	Vocab get_param_vocab() const override;
 	bool reads_context() const override { return true; }
 
 protected:
-	RendDesc get_sub_renddesc_vfunc(const RendDesc& renddesc) const override;
 	rendering::Task::Handle build_composite_fork_task_vfunc(ContextParams, rendering::Task::Handle sub_task) const override;
-	rendering::Task::Handle build_rendering_task_vfunc(Context context) const override;
 }; // END of class Layer_Bevel
 
 }; // END of namespace lyr_std
