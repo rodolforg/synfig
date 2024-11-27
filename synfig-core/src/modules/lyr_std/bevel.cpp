@@ -40,6 +40,7 @@
 
 #include <synfig/blur.h>
 #include <synfig/context.h>
+#include <synfig/rendering/common/task/tasktransformation.h>
 
 #endif
 
@@ -164,7 +165,7 @@ Layer_Bevel::get_color(Context context, const Point &pos)const
 	return Color::blend(shade,context.get_color(pos),get_amount(),get_blend_method());
 }
 
-class TaskBevel: public rendering::Task
+class TaskBevel: public rendering::Task, rendering::TaskInterfaceTransformationPass
 {
 public:
 	typedef etl::handle<TaskBevel> Handle;
@@ -251,7 +252,6 @@ SYNFIG_EXPORT rendering::Task::Token TaskBevel::token(
 	DescAbstract<TaskBevel>("Bevel") );
 
 #include "synfig/rendering/software/task/tasksw.h"
-
 
 class TaskBevelSW : public TaskBevel, public synfig::rendering::TaskSW
 {
