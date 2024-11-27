@@ -505,9 +505,9 @@ synfig::error("Sub ppu: %f, %f", sub_tasks[0]->get_pixels_per_unit()[0], sub_tas
 
 		synfig::Surface::pen apen(la->get_surface().get_pen(target_min[0], target_min[1]));
 
-		int v = halfsizey+std::abs(offset_v)/* + target_min[1]*/;
+		int v = halfsizey+std::abs(offset_v) + target_min[1];
 		for(int iy = target_min[1]; iy < target_max[1]; ++iy, apen.inc_y(), apen.dec_x(target_max[0]-target_min[0]), ++v) {
-			int u = halfsizex+std::abs(offset_u)/* + target_min[0]*/;
+			int u = halfsizex+std::abs(offset_u) + target_min[0];
 			for(int ix =target_min[0]; ix < target_max[0]; ++ix, apen.inc_x(), ++u) {
 
 				Real alpha(0);
