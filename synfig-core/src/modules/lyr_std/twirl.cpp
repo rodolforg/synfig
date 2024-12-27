@@ -44,6 +44,9 @@
 #include <synfig/transform.h>
 #include "twirl.h"
 
+#include <synfig/rendering/common/task/taskdistort.h>
+#include <synfig/rendering/software/task/taskdistortsw.h>
+
 #endif
 
 /* === U S I N G =========================================================== */
@@ -58,11 +61,149 @@ SYNFIG_LAYER_INIT(Twirl);
 SYNFIG_LAYER_SET_NAME(Twirl,"twirl");
 SYNFIG_LAYER_SET_LOCAL_NAME(Twirl,N_("Twirl"));
 SYNFIG_LAYER_SET_CATEGORY(Twirl,N_("Distortions"));
-SYNFIG_LAYER_SET_VERSION(Twirl,"0.1");
+SYNFIG_LAYER_SET_VERSION(Twirl,"0.2");
 
 /* === P R O C E D U R E S ================================================= */
 
 /* === M E T H O D S ======================================================= */
+
+struct Twirl::Internal
+{
+	Point center;
+	Real radius;
+	Angle rotations;
+	bool distort_inside;
+	bool distort_outside;
+
+	Point transform(const Point& point) const;
+	Point transform(const Point& point, bool reverse) const;
+	void sync();
+};
+
+void
+Twirl::Internal::sync()
+{
+}
+
+Point
+Twirl::Internal::transform(const Point& pos) const
+{
+	return transform(pos, false);
+}
+
+Point
+Twirl::Internal::transform(const Point& pos, bool reverse) const
+{
+	Point centered(pos-center);
+	Real mag(centered.mag());
+
+	Angle a;
+
+	if ((distort_inside || mag>radius) && (distort_outside || mag<radius))
+		a = rotations*((mag-radius)/radius);
+	else
+		return pos;
+
+	if (reverse)
+		a = -a;
+
+	const Real sin(Angle::sin(a).get());
+	const Real cos(Angle::cos(a).get());
+
+	Point twirled;
+	twirled[0] = cos*centered[0] - sin*centered[1];
+	twirled[1] = sin*centered[0] + cos*centered[1];
+
+	return twirled + center;
+}
+
+class TaskTwirl
+	: public rendering::TaskDistort
+{
+public:
+	typedef etl::handle<TaskTwirl> Handle;
+	static Token token;
+	Token::Handle get_token() const override { return token.handle(); }
+
+	Twirl::Internal internal;
+	//	virtual bool get_allow_multithreading() const {
+	//		if (const Mode *mode = dynamic_cast<const Mode*>(this))
+	//			return mode->get_mode_allow_multithreading();
+	//		return true;
+	//	}
+	//	virtual bool get_mode_allow_source_as_target() const {
+	//		if (const Mode *mode = dynamic_cast<const Mode*>(this))
+	//			return mode->get_mode_allow_source_as_target();
+	//		return false;
+	//	}
+	//		virtual bool get_mode_allow_simultaneous_write() const { //!< allow simultaneous write to the same target
+	//	//		if (const Mode *mode = dynamic_cast<const Mode*>(this))
+	//	//			return mode->get_mode_allow_simultaneous_write();
+	//	//		return true;
+	//		return false;
+	//		}
+
+	Rect
+	compute_required_source_rect(const Rect& source_rect, const Matrix& raster_to_world_transformation) const override
+	{
+		if (!internal.distort_outside) {
+			Point corner{internal.radius, internal.radius};
+			return source_rect | Rect(internal.center - corner, internal.center + corner);
+		}
+
+		const int tw = target_rect.get_width();
+		const int th = target_rect.get_height();
+		Vector dx = raster_to_world_transformation.axis_x();
+		Vector dy = raster_to_world_transformation.axis_y() - dx*(Real)tw;
+		Vector p = raster_to_world_transformation.get_transformed( Vector((Real)target_rect.minx, (Real)target_rect.miny) );
+
+		Rect sub_source_rect = source_rect;
+
+		// Check from where the boundary pixels come in source context (before transform)
+		// vertical borders
+		for (int iy = target_rect.miny; iy < target_rect.maxy; ++iy, p[1] += dy[1]) {
+			Point tmp = internal.transform(p);
+			sub_source_rect.expand(tmp);
+			tmp = internal.transform(Point(p[0] + dx[0]*(Real)tw, p[1]));
+			sub_source_rect.expand(tmp);
+		}
+
+		// horizontal borders
+		for (int ix = target_rect.minx; ix < target_rect.maxx; ++ix, p[0] += dx[0]) {
+			Point tmp = internal.transform(p);
+			sub_source_rect.expand(tmp);
+			tmp = internal.transform(Point(p[0], p[1] - dy[1]*(Real)th));
+			sub_source_rect.expand(tmp);
+		}
+
+		return sub_source_rect;
+	}
+};
+
+class TaskTwirlSW
+	: public TaskTwirl, public rendering::TaskDistortSW
+{
+public:
+	typedef etl::handle<TaskTwirlSW> Handle;
+	static Token token;
+	Token::Handle get_token() const override { return token.handle(); }
+
+	Point
+	point_vfunc(const Point& point) const override
+	{
+		return internal.transform(point);
+	}
+
+	bool run(Task::RunParams& /*params*/) const override
+	{
+		return run_task(*this);
+	}
+};
+
+rendering::Task::Token TaskTwirl::token(
+	DescAbstract<TaskTwirl>("Twirl") );
+rendering::Task::Token TaskTwirlSW::token(
+	DescReal<TaskTwirlSW, TaskTwirl>("TwirlSW") );
 
 /* === E N T R Y P O I N T ================================================= */
 
@@ -72,10 +213,23 @@ Twirl::Twirl():
 	param_radius(ValueBase(Real(1.0))),
 	param_rotations(ValueBase(Angle::zero())),
 	param_distort_inside(ValueBase(true)),
-	param_distort_outside(ValueBase(false))
+	param_distort_outside(ValueBase(false)),
+	param_cobra(true)
 {
+	internal = new Internal();
+	internal->center = {0,0};
+	internal->radius = 1.;
+	internal->rotations = Angle::zero();
+	internal->distort_inside = true;
+	internal->distort_outside = false;
+
 	SET_INTERPOLATION_DEFAULTS();
 	SET_STATIC_DEFAULTS();
+}
+
+Twirl::~Twirl()
+{
+	delete internal;
 }
 
 bool
@@ -86,6 +240,7 @@ Twirl::set_param(const String & param, const ValueBase &value)
 	IMPORT_VALUE(param_rotations);
 	IMPORT_VALUE(param_distort_inside);
 	IMPORT_VALUE(param_distort_outside);
+	IMPORT_VALUE(param_cobra);
 
 	return Layer_Composite::set_param(param,value);
 }
@@ -98,6 +253,7 @@ Twirl::get_param(const String &param)const
 	EXPORT_VALUE(param_rotations);
 	EXPORT_VALUE(param_distort_inside);
 	EXPORT_VALUE(param_distort_outside);
+	EXPORT_VALUE(param_cobra);
 
 	EXPORT_NAME();
 	EXPORT_VERSION();
@@ -137,6 +293,11 @@ Twirl::get_param_vocab()const
 	ret.push_back(ParamDesc("distort_outside")
 		.set_local_name(_("Distort Outside"))
 		.set_description(_("When checked, distorts outside the circle"))
+	);
+
+	ret.push_back(ParamDesc("cobra")
+		.set_local_name(_("Cobra"))
+		.set_description(_("When checked, uses Cobra renderer"))
 	);
 
 	return ret;
@@ -280,4 +441,22 @@ Twirl::get_sub_renddesc_vfunc(const RendDesc &renddesc) const
 
 rendering::Task::Handle
 Twirl::build_rendering_task_vfunc(Context context) const
-	{ return Layer::build_rendering_task_vfunc(context); }
+{
+	if (!param_cobra.get(bool()))
+		return Layer::build_rendering_task_vfunc(context);
+
+	internal->center = param_center.get(Point());
+	internal->radius = param_radius.get(Real());
+	internal->rotations = param_rotations.get(Angle());
+	internal->distort_inside = param_distort_inside.get(bool());
+	internal->distort_outside = param_distort_outside.get(bool());
+
+	rendering::Task::Handle task = context.build_rendering_task();
+
+	TaskTwirl::Handle task_twirl(new TaskTwirl());
+	task_twirl->internal = *internal;
+
+	task_twirl->sub_task() = task;
+	task = task_twirl;
+	return task;
+}

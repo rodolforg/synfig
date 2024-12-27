@@ -70,11 +70,14 @@ private:
 	ValueBase param_distort_inside;
 	//! Parameter: (bool)
 	ValueBase param_distort_outside;
+	//! Parameter: (bool)
+	ValueBase param_cobra;
 
 	Point distort(const Point &pos, bool reverse=false)const;
 public:
 
 	Twirl();
+	~Twirl();
 
 	virtual bool set_param(const String & param, const ValueBase &value);
 
@@ -93,6 +96,12 @@ public:
 protected:
 	virtual RendDesc get_sub_renddesc_vfunc(const RendDesc &renddesc) const;
 	virtual rendering::Task::Handle build_rendering_task_vfunc(Context context) const;
+
+public:
+	class Internal;
+
+private:
+	Internal* internal;
 }; // END of class Twirl
 
 }; // END of namespace lyr_std
