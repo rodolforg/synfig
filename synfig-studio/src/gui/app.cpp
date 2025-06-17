@@ -148,6 +148,7 @@
 #include <gui/exception_guard.h>
 
 #include <synfigapp/action.h>
+#include <synfigapp/actions/layerpaint.h>
 #include <synfigapp/canvasinterface.h>
 #include <synfigapp/main.h>
 #include <synfigapp/settings.h>
@@ -299,6 +300,8 @@ bool   studio::App::enable_mainwin_menubar = true;
 bool   studio::App::enable_mainwin_toolbar = true;
 String studio::App::ui_language ("os_LANG");
 long   studio::App::ui_handle_tooltip_flag(Duck::STRUCT_DEFAULT);
+
+int    studio::App::brush_undo_mode = 1;
 
 static int max_recent_files_=25;
 int    studio::App::get_max_recent_files()      { return max_recent_files_; }
@@ -637,6 +640,11 @@ public:
 				value=App::image_editor_path;
 				return true;
 			}
+			if(key=="brush_undo_mode")
+			{
+				value=strprintf("%i", App::brush_undo_mode);
+				return true;
+			}
 		}
 		catch(...)
 		{
@@ -852,6 +860,12 @@ public:
 				for (auto& instance : App::instance_list)
 					instance->set_clear_redo_stack_on_new_action(value != "0");
 			}
+			if(key=="brush_undo_mode")
+			{
+				int i(atoi(value.c_str()));
+				App::brush_undo_mode = i;
+				return true;
+			}
 		}
 		catch(...)
 		{
@@ -899,6 +913,7 @@ public:
 		ret.push_back("enable_mainwin_menubar");
 		ret.push_back("ui_handle_tooltip_flag");
 		ret.push_back("image_editor_path");
+		ret.push_back("brush_undo_mode");
 
 
 		return ret;
@@ -2274,6 +2289,7 @@ App::quit()
 			_("Close"));
 		return;
 	}
+	synfigapp::Action::LayerPaint::cleanup_history();
 
 	while(!instance_list.empty())
 		if (!instance_list.front()->safe_close())

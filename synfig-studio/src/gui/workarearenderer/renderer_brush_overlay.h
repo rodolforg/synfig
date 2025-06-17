@@ -1,10 +1,9 @@
 /* === S Y N F I G ========================================================= */
-/*!	\file state_brush.h
+/*!	\file renderer_brush_overlay.h
 **	\brief Template Header
 **
 **	\legal
-**	Copyright (c) 2014 Ivan Mahonin
-**	......... ... 2025 Abdelhadi Wael
+**	Copyright (c) 2002-2005 Robert B. Quattlebaum Jr., Adrian Bentley
 **	......... ... 2026 Synfig Contributors
 **
 **	This file is part of Synfig.
@@ -27,12 +26,15 @@
 
 /* === S T A R T =========================================================== */
 
-#ifndef SYNFIG_STUDIO_STATE_BRUSH_H
-#define SYNFIG_STUDIO_STATE_BRUSH_H
+#ifndef SYNFIG_RENDERER_BRUSH_OVERLAY_H
+#define SYNFIG_RENDERER_BRUSH_OVERLAY_H
 
 /* === H E A D E R S ======================================================= */
 
-#include "smach.h"
+#include "workarearenderer.h"
+#include <synfig/surface.h>
+#include <synfig/rect.h>
+#include <synfig/matrix.h>
 
 /* === M A C R O S ========================================================= */
 
@@ -42,20 +44,28 @@
 
 namespace studio {
 
-class StateBrush_Context;
+	class Renderer_BrushOverlay : public studio::WorkAreaRenderer
+	{
+	private:
+		synfig::Surface overlay_surface;
+		synfig::Point tl;
+		synfig::Point br;
+		bool overlay_enabled;
+		bool has_transformation;
+		synfig::Matrix transformation_matrix;
+	public:
+		Renderer_BrushOverlay();
+		~Renderer_BrushOverlay();
 
-class StateBrush : public Smach::state<StateBrush_Context>
-{
-public:
-	StateBrush();
-	~StateBrush();
-	void* enter_state(studio::CanvasView* machine_context) const override;
-}; // END of class StateBrush
+		void set_overlay_surface(const synfig::Surface& surface, const synfig::Point& tl, const synfig::Point& br, const synfig::Matrix& transform = synfig::Matrix());
+		void clear_overlay();
+		void enable_overlay(bool enabled = true);
 
-extern StateBrush state_brush;
+	protected:
+		void render_vfunc(const Glib::RefPtr<Gdk::Window>& drawable, const Gdk::Rectangle& expose_area) override;
+		bool get_enabled_vfunc() const override;
+	};
 
 }; // END of namespace studio
-
-/* === E N D =============================================================== */
 
 #endif
