@@ -226,13 +226,13 @@ public:
 
 	typedef synfigapp::CanvasInterface::Mode Mode;
 
-	void set_grid_snap_toggle(bool flag) { grid_snap_toggle->set_active(flag); }
-	void set_grid_show_toggle(bool flag) { grid_show_toggle->set_active(flag); }
-	void set_guides_snap_toggle(bool flag) { guides_snap_toggle->set_active(flag); }
-	void set_guides_show_toggle(bool flag) { guides_show_toggle->set_active(flag); }
-	void set_onion_skin_toggle(bool flag) { onion_skin_toggle->set_active(flag); }
-	void set_onion_skin_keyframes_toggle(bool flag) { onion_skin_keyframes_toggle->set_active(flag); }
-	void set_background_rendering_toggle(bool flag) { background_rendering_toggle->set_active(flag); }
+	void set_grid_snap_toggle(bool flag);
+	void set_grid_show(bool flag);
+	void set_guides_snap_toggle(bool flag);
+	void set_guides_show_toggle(bool flag);
+	void set_onion_skin_toggle(bool flag);
+	void set_onion_skin_keyframes_toggle(bool flag);
+	void set_background_rendering_toggle(bool flag);
 
 	void grab_focus();
 
@@ -311,13 +311,7 @@ private:
 	Gtk::ToolButton *render_options_button;
 	Gtk::ToolButton *preview_options_button;
 	Gtk::ToggleToolButton *onion_skin_keyframes;
-	bool toggling_show_grid;
-	bool toggling_snap_grid;
-	bool toggling_show_guides;
-	bool toggling_snap_guides;
-	bool toggling_onion_skin;
-	bool toggling_onion_skin_keyframes;
-	bool toggling_background_rendering;
+
 	//! Shows current time and allows edition
 	Widget_Time *current_time_widget;
 	void on_current_time_widget_changed();
@@ -339,15 +333,16 @@ private:
 	Gtk::UIManager::ui_merge_id merge_id_popup_;
 	Gtk::UIManager::ui_merge_id merge_id_toolbar_;
 
-	Glib::RefPtr<Gtk::ToggleAction> grid_snap_toggle;
-	Glib::RefPtr<Gtk::ToggleAction> grid_show_toggle;
-	Glib::RefPtr<Gtk::ToggleAction> rulers_show_toggle;
-	Glib::RefPtr<Gtk::ToggleAction> guides_snap_toggle;
-	Glib::RefPtr<Gtk::ToggleAction> guides_show_toggle;
-	Glib::RefPtr<Gtk::ToggleAction> onion_skin_toggle;
-	Glib::RefPtr<Gtk::ToggleAction> onion_skin_keyframes_toggle;
-	Glib::RefPtr<Gtk::ToggleAction> background_rendering_toggle;
+	Glib::RefPtr<Gio::SimpleAction> grid_snap_toggle;
+	Glib::RefPtr<Gio::SimpleAction> grid_show_toggle;
+	Glib::RefPtr<Gio::SimpleAction> rulers_show_toggle;
+	Glib::RefPtr<Gio::SimpleAction> guides_snap_toggle;
+	Glib::RefPtr<Gio::SimpleAction> guides_show_toggle;
+	Glib::RefPtr<Gio::SimpleAction> onion_skin_toggle;
+	Glib::RefPtr<Gio::SimpleAction> onion_skin_keyframes_toggle;
+	Glib::RefPtr<Gio::SimpleAction> background_rendering_toggle;
 
+	Glib::RefPtr<Gio::SimpleAction> low_resolution_toggle;
 	Gtk::RadioButtonGroup low_res_pixel_size_group;
 
 	Glib::RefPtr<Gtk::ActionGroup> action_group;
@@ -463,16 +458,16 @@ private:
 
 	void decrease_low_res_pixel_size();
 	void increase_low_res_pixel_size();
-	void toggle_low_res_pixel_flag();
+	void on_low_resolution_toggled();
 	void set_onion_skins();
-	void toggle_show_ruler();
-	void toggle_show_grid();
-	void toggle_snap_grid();
-	void toggle_show_guides();
-	void toggle_snap_guides();
-	void toggle_onion_skin();
-	void toggle_onion_skin_keyframes();
-	void toggle_background_rendering();
+	void on_show_ruler_toggled();
+	void on_show_grid_toggled();
+	void on_snap_grid_toggled();
+	void on_show_guides_toggled();
+	void on_snap_guides_toggled();
+	void on_onion_skin_toggled();
+	void on_onion_skin_keyframes_toggled();
+	void on_background_rendering_toggled();
 
 	void toggle_animatebutton();
 	void toggle_timetrackbutton();
