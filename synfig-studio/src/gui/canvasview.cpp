@@ -1881,11 +1881,11 @@ CanvasView::on_key_press_event(GdkEventKey* event)
 		switch (event->keyval) {
 		case GDK_KEY_Home:
 		case GDK_KEY_KP_Home:
-			action_group->get_action("seek-begin")->activate();
+			action_group_->lookup_action("seek-begin")->activate();
 			return  true;
 		case GDK_KEY_End:
 		case GDK_KEY_KP_End:
-			action_group->get_action("seek-end")->activate();
+			action_group_->lookup_action("seek-end")->activate();
 			return  true;
 		}
 	}
