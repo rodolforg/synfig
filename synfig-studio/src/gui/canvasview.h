@@ -330,9 +330,6 @@ private:
 	//! Menu members
 	Gtk::Menu parammenu;
 
-	Gtk::UIManager::ui_merge_id merge_id_popup_;
-	Gtk::UIManager::ui_merge_id merge_id_toolbar_;
-
 	Glib::RefPtr<Gio::SimpleAction> grid_snap_toggle;
 	Glib::RefPtr<Gio::SimpleAction> grid_show_toggle;
 	Glib::RefPtr<Gio::SimpleAction> rulers_show_toggle;
@@ -518,10 +515,6 @@ public:
 	AdjustmentGroup::Handle get_adjustment_group(const synfig::String& x);
 	void set_adjustment_group(const synfig::String& x, AdjustmentGroup::Handle y);
 
-	Gtk::UIManager::ui_merge_id get_popup_id();
-	void set_popup_id(Gtk::UIManager::ui_merge_id popup_id);
-	Gtk::UIManager::ui_merge_id get_toolbar_id();
-	void set_toolbar_id(Gtk::UIManager::ui_merge_id toolbar_id);
 
 	//std::map<synfig::String,Gtk::Widget*>& tree_view_book() { return tree_view_book_; }
 	//std::map<synfig::String,Gtk::Widget*>& ext_widget_book() { return ext_widget_book_; }
