@@ -78,7 +78,7 @@ using namespace synfig;
 StateBrush studio::state_brush;
 
 // brush -> (idx -> val)
-static std::map<String, std::map<int, float>> custom_settings;
+static std::map<filesystem::Path, std::map<int, float>> custom_settings;
 
 /* === C L A S S E S & S T R U C T S ======================================= */
 
@@ -104,11 +104,11 @@ public:
 			Entry(): base(0.f) { }
 		};
 
-		String filename;
+		filesystem::Path filename;
 		Entry settings[BRUSH_SETTINGS_COUNT];
 
 		void clear();
-		void load(const String& filename);
+		void load(const filesystem::Path& filename);
 		void apply(brushlib::Brush& brush);
 
 	private:
@@ -144,7 +144,7 @@ private:
 
 	std::map<int, Gtk::Scale*> setting_controls;
 	Gtk::ToggleToolButton* selected_brush_button;
-	std::map<String, Gtk::ToggleToolButton*> brush_buttons;
+	std::map<filesystem::Path, Gtk::ToggleToolButton*> brush_buttons;
 	synfigapp::Settings& settings;
 	Gtk::CheckButton eraser_checkbox;
 
@@ -153,8 +153,8 @@ private:
 
 	void load_settings();
 	void save_settings();
-	bool scan_directory(const String& path, int scan_sub_levels, std::set<String>& out_files);
-	void select_brush(Gtk::ToggleToolButton* button, const String& filename);
+	bool scan_directory(const filesystem::Path& path, int scan_sub_levels, std::set<filesystem::Path>& out_files);
+	void select_brush(Gtk::ToggleToolButton* button, const filesystem::Path& filename);
 
 public:
 	explicit StateBrush_Context(CanvasView* canvas_view);
@@ -432,14 +432,14 @@ StateBrush_Context::BrushConfig::read_row(const char** pos)
 }
 
 void
-StateBrush_Context::BrushConfig::load(const String& filename)
+StateBrush_Context::BrushConfig::load(const filesystem::Path& filename)
 {
 	// Load brush configuration from file and parse settings
 	clear();
 
 	char* buffer = nullptr;
 	try {
-		Glib::RefPtr<Gio::File> file = Gio::File::create_for_path(filename);
+		Glib::RefPtr<Gio::File> file = Gio::File::create_for_path(filename.u8string());
 		goffset s = file->query_info()->get_size();
 		if (s < 0)
 			return;
@@ -569,29 +569,22 @@ StateBrush_Context::~StateBrush_Context()
 }
 
 bool
-StateBrush_Context::scan_directory(const String& path, int scan_sub_levels, std::set<String>& out_files)
+StateBrush_Context::scan_directory(const filesystem::Path& path, int scan_sub_levels, std::set<filesystem::Path>& out_files)
 {
 	if (scan_sub_levels < 0)
 		return false;
-	Glib::RefPtr<Gio::File> directory = Gio::File::create_for_path(path);
-	Glib::RefPtr<Gio::FileEnumerator> e;
 
-	try {
-		e = directory->enumerate_children();
-	} catch(Gio::Error&) {
-		return false;
-	}
-	catch(Glib::FileError&) {
-		return false;
-	}
+	FileSystem::FileList file_list;
+	FileSystemNative::instance()->directory_scan(path.u8string(), file_list);
 
-	Glib::RefPtr<Gio::FileInfo> info;
-	while ((bool)(info = e->next_file())) {
-		String filepath = FileSystem::fix_slashes(directory->get_child(info->get_name())->get_path());
-		if (!scan_directory(filepath, scan_sub_levels-1, out_files))
-			out_files.insert(filepath);
+	for (const auto& file : file_list) {
+		const auto full_filepath = path / file;
+		if (FileSystemNative::instance()->is_directory(full_filepath.u8string())) {
+			scan_directory(full_filepath, scan_sub_levels - 1, out_files);
+		} else if (FileSystemNative::instance()->is_file(full_filepath.u8string())) {
+			out_files.insert(full_filepath);
+		}
 	}
-
 	return true;
 }
 
@@ -627,7 +620,7 @@ StateBrush_Context::create_brushes_tab(Gtk::Notebook* notebook)
 
 	// connect eraser checkbox signal to update brush
 	eraser_checkbox.signal_toggled().connect([this]() {
-		if (selected_brush_button && selected_brush_config.filename.length() > 0) {
+		if (selected_brush_button && !selected_brush_config.filename.empty()) {
 			selected_brush_config.settings[BRUSH_ERASER].base = eraser_checkbox.get_active() ? 1.0 : 0.0;
 			if (action) {
 				selected_brush_config.apply(action->stroke.brush());
@@ -652,32 +645,30 @@ StateBrush_Context::create_brushes_tab(Gtk::Notebook* notebook)
 	brushes_scroll->add(*palette);
 
 	// load brushes files definition
-	std::set<String> files;
+	std::set<filesystem::Path> files;
 	for (const auto& path : App::brushes_path)
 		scan_directory(path.u8string(), 1, files);
 
 	String last_brush_filename = settings.get_value("brush.selected_brush_filename", String());
 	Gtk::ToggleToolButton* active_button = nullptr;
-	String active_filename;
+	filesystem::Path active_filename;
 
-	for (auto i = files.begin(); i != files.end(); ++i) {
-		if (!brush_buttons.count(*i) && filesystem::Path::filename_extension(*i) == ".myb") {
-			const String &brush_file = *i;
-			const String icon_file = filesystem::Path::filename_sans_extension(brush_file) + "_prev.png";
+	for (const auto& filename : files) {
+		if (!brush_buttons.count(filename) && filename.extension().u8string() == ".myb") {
+			const filesystem::Path& brush_file = filename;
+			const filesystem::Path icon_file = filesystem::Path(brush_file).replace_extension({".png"}).add_suffix("_prev");
 			if (files.count(icon_file)) {
 				// create a single brush button
-				Gtk::ToggleToolButton* brush_button = brush_buttons[*i] = (new class Gtk::ToggleToolButton());
+				Gtk::ToggleToolButton* brush_button = brush_buttons[brush_file] = (new Gtk::ToggleToolButton());
 
 				Glib::RefPtr<Gdk::Pixbuf> pixbuf, pixbuf_scaled;
-				pixbuf = Gdk::Pixbuf::create_from_file(icon_file);
+				pixbuf = Gdk::Pixbuf::create_from_file(icon_file.u8string());
 				pixbuf_scaled = pixbuf->scale_simple(BRUSH_ICON_SIZE, BRUSH_ICON_SIZE, Gdk::INTERP_BILINEAR);
 
 				brush_button->set_icon_widget(*Gtk::manage(new Gtk::Image(pixbuf_scaled)));
 				brush_button->set_halign(Gtk::ALIGN_CENTER);
 
-				String filename = Glib::path_get_basename(brush_file);
-				String base_name = filesystem::Path::filename_sans_extension(filename);
-				brush_button->set_tooltip_text(base_name);
+				brush_button->set_tooltip_text(brush_file.stem().u8string());
 
 				// connect the button click event and brush file definition
 				brush_button->signal_clicked().connect(
@@ -853,7 +844,7 @@ StateBrush_Context::create_settings_tab(Gtk::Notebook* notebook)
 }
 
 void
-StateBrush_Context::select_brush(Gtk::ToggleToolButton* button, const String& filename)
+StateBrush_Context::select_brush(Gtk::ToggleToolButton* button, const filesystem::Path& filename)
 {
 	if (button && button->get_active()) {
 		if (selected_brush_button)
