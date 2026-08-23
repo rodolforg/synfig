@@ -67,7 +67,7 @@ struct StrokeData {
 	Point before_tl, before_br;
 };
 
-static std::vector<StrokeData> strokes_history;
+static std::map<Canvas::Handle, std::vector<StrokeData>> strokes_history;
 static std::map<Layer_Bitmap::Handle, Surface> original_layer_surface;
 
 void
@@ -253,8 +253,8 @@ Action::LayerPaint::PaintStroke::apply()
 			stroke_data.brush = std::move(brush_);
 			stroke_data.before_tl = original_tl;
 			stroke_data.before_br = original_br;
-			strokes_history.push_back(std::move(stroke_data));
-			stroke_index = strokes_history.size() - 1;
+			strokes_history[layer->get_canvas()].push_back(std::move(stroke_data));
+			stroke_index = strokes_history[layer->get_canvas()].size() - 1;
 			break;
 		}
 		case CHECKPOINTING:
@@ -274,7 +274,7 @@ Action::LayerPaint::PaintStroke::apply()
 
 			// if we need to checkpoint save the surface
 			std::unique_ptr<Surface> temp_checkpoint;
-			if (strokes_history.size() % CHECKPOINT_INTERVAL == 0) {
+			if (strokes_history[layer->get_canvas()].size() % CHECKPOINT_INTERVAL == 0) {
 				if (layer->rendering_surface) {
 					rendering::SurfaceResource::LockRead<rendering::SurfaceSW> lock(layer->rendering_surface);
 					if (lock && lock->get_surface().is_valid()) {
@@ -300,8 +300,8 @@ Action::LayerPaint::PaintStroke::apply()
 			stroke_data.checkpoint_surface = std::move(temp_checkpoint);
 			stroke_data.before_tl = original_tl;
 			stroke_data.before_br = original_br;
-			strokes_history.push_back(std::move(stroke_data));
-			stroke_index = strokes_history.size() - 1;
+			strokes_history[layer->get_canvas()].push_back(std::move(stroke_data));
+			stroke_index = strokes_history[layer->get_canvas()].size() - 1;
 			break;
 		}
 	}
@@ -332,12 +332,17 @@ Action::LayerPaint::PaintStroke::undo()
 
 		case REDRAW:
 		{
-			if (!applied || !layer || strokes_history.empty() || stroke_index != (int)strokes_history.size() - 1) {
+			if (!applied || !layer || strokes_history.empty()) {
 				return;
 			}
-			brush_ = std::move(strokes_history.back().brush);
-			points = std::move(strokes_history.back().points);
-			strokes_history.pop_back();
+			std::vector<StrokeData>& canvas_stroke_history = strokes_history[layer->get_canvas()];
+			if (canvas_stroke_history.empty() || stroke_index != (int)canvas_stroke_history.size() - 1) {
+				return;
+			}
+
+			brush_ = std::move(canvas_stroke_history.back().brush);
+			points = std::move(canvas_stroke_history.back().points);
+			canvas_stroke_history.pop_back();
 
 			// restore the original surface
 			auto it = original_layer_surface.find(layer);
@@ -356,7 +361,7 @@ Action::LayerPaint::PaintStroke::undo()
 			}
 
 			// Replay strokes
-			for (auto& stroke_data : strokes_history) {
+			for (auto& stroke_data : canvas_stroke_history) {
 				if (stroke_data.layer == layer) {
 					paint_stroke_data(stroke_data);
 				}
@@ -370,18 +375,22 @@ Action::LayerPaint::PaintStroke::undo()
 
 		case CHECKPOINTING:
 		{
-			if (!applied || !layer || strokes_history.empty() || stroke_index != (int)strokes_history.size() - 1) {
+			if (!applied || !layer || strokes_history.empty()) {
+				return;
+			}
+			std::vector<StrokeData>& canvas_stroke_history = strokes_history[layer->get_canvas()];
+			if (canvas_stroke_history.empty() || stroke_index != (int)canvas_stroke_history.size() - 1) {
 				return;
 			}
 
-			brush_ = std::move(strokes_history.back().brush);
-			points = std::move(strokes_history.back().points);
-			strokes_history.pop_back();
+			brush_ = std::move(canvas_stroke_history.back().brush);
+			points = std::move(canvas_stroke_history.back().points);
+			canvas_stroke_history.pop_back();
 
 			// find the most recent checkpoint
 			int checkpoint_idx = -1;
-			for (int i = strokes_history.size() - 1; i >= 0; --i) {
-				if (strokes_history[i].layer == layer && strokes_history[i].checkpoint_surface) {
+			for (int i = canvas_stroke_history.size() - 1; i >= 0; --i) {
+				if (canvas_stroke_history[i].layer == layer && canvas_stroke_history[i].checkpoint_surface) {
 					checkpoint_idx = i;
 					break;
 				}
@@ -390,7 +399,7 @@ Action::LayerPaint::PaintStroke::undo()
 			Surface starting_surface;
 			int redraw_start = 0;
 			if (checkpoint_idx != -1) {
-				starting_surface = *strokes_history[checkpoint_idx].checkpoint_surface;
+				starting_surface = *canvas_stroke_history[checkpoint_idx].checkpoint_surface;
 				redraw_start = checkpoint_idx;
 			} else {
 				auto it = original_layer_surface.find(layer);
@@ -406,8 +415,8 @@ Action::LayerPaint::PaintStroke::undo()
 			}
 
 			// replay strokes since last checkpoint
-			for (int i = redraw_start; i < strokes_history.size(); ++i) {
-				StrokeData& stroke_data = strokes_history[i];
+			for (int i = redraw_start; i < canvas_stroke_history.size(); ++i) {
+				StrokeData& stroke_data = canvas_stroke_history[i];
 				if (stroke_data.layer == layer) {
 					paint_stroke_data(stroke_data);
 				}
