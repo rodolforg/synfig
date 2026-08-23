@@ -116,8 +116,8 @@ public:
 		static const char* const input_names[INPUT_COUNT];
 
 		bool read_row(const char** pos);
-		bool read_space(const char** pos);
-		bool read_to_line_end(const char** pos);
+		void skip_spaces(const char** pos);
+		bool skip_to_next_line(const char** pos);
 		bool read_key(const char** pos, const char* key);
 		bool read_word(const char** pos, String& out_value);
 		bool read_float(const char** pos, float& out_value);
@@ -273,17 +273,16 @@ StateBrush_Context::BrushConfig::clear()
 	}
 }
 
-bool
-StateBrush_Context::BrushConfig::read_space(const char** pos)
+void
+StateBrush_Context::BrushConfig::skip_spaces(const char** pos)
 {
 	// Skip whitespace characters
-	while (**pos > 0 && **pos <= ' ')
+	while (**pos == ' ' || **pos == '\t' || **pos == '\v')
 		++(*pos);
-	return true;
 }
 
 bool
-StateBrush_Context::BrushConfig::read_to_line_end(const char** pos)
+StateBrush_Context::BrushConfig::skip_to_next_line(const char** pos)
 {
 	// Advance pointer to the end of the line
 	while (**pos != 0 && **pos != '\n' && **pos != '\r')
@@ -300,10 +299,12 @@ StateBrush_Context::BrushConfig::read_to_line_end(const char** pos)
 bool
 StateBrush_Context::BrushConfig::read_key(const char** pos, const char* key)
 {
+	skip_spaces(pos);
 	// Check if the current position matches the given key string
 	size_t l = strlen(key);
 	if (strncmp(*pos, key, l) == 0) {
 		*pos += l;
+		skip_spaces(pos);
 		return true;
 	}
 	return false;
@@ -312,6 +313,7 @@ StateBrush_Context::BrushConfig::read_key(const char** pos, const char* key)
 bool
 StateBrush_Context::BrushConfig::read_word(const char** pos, String& out_value)
 {
+	skip_spaces(pos);
 	// Read a word (a-z or '_') from the current position
 	out_value.clear();
 	const char *p = *pos;
@@ -319,7 +321,9 @@ StateBrush_Context::BrushConfig::read_word(const char** pos, String& out_value)
 		++p;
 	if (p > *pos) {
 		out_value.assign(*pos, p);
-		*pos = p; return true;
+		*pos = p;
+		skip_spaces(pos);
+		return true;
 	}
 	return false;
 }
@@ -327,6 +331,7 @@ StateBrush_Context::BrushConfig::read_word(const char** pos, String& out_value)
 bool
 StateBrush_Context::BrushConfig::read_float(const char** pos, float& out_value)
 {
+	skip_spaces(pos);
 	// Parse a floating point number from the current position
 	out_value = 0.f;
 
@@ -349,25 +354,25 @@ StateBrush_Context::BrushConfig::read_float(const char** pos, float& out_value)
 	if (negative)
 		out_value = -out_value;
 	*pos = p;
+	skip_spaces(pos);
 	return true;
 }
 
 bool
 StateBrush_Context::BrushConfig::read_map_entry(const char** pos, MapEntry& out_value)
 {
+	skip_spaces(pos);
 	// Parse a mapping entry in the form (x y)
 	out_value.x = 0.f;
 	out_value.y = 0.f;
 	const char *p = *pos;
 	bool success = read_key(&p, "(")
-				   && read_space(&p)
 				   && read_float(&p, out_value.x)
-				   && read_space(&p)
 				   && read_float(&p, out_value.y)
-				   && read_space(&p)
 				   && read_key(&p, ")");
 	if (success) {
 		*pos = p;
+		skip_spaces(pos);
 		return true;
 	}
 	out_value.x = 0.f;
@@ -378,24 +383,26 @@ StateBrush_Context::BrushConfig::read_map_entry(const char** pos, MapEntry& out_
 bool
 StateBrush_Context::BrushConfig::read_input_entry(const char** pos, InputEntry& out_value)
 {
+	skip_spaces(pos);
 	// Parse a row in the brush config file, mapping settings and input entries
 	out_value.input = 0;
 	out_value.mapping.clear();
 
 	const char *p = *pos;
 	String word;
-	if (read_space(&p) && read_word(&p, word)) {
+	if (read_word(&p, word)) {
 		for (int i = 0; i < INPUT_COUNT; ++i) {
 			if (word == input_names[i]) {
 				MapEntry entry;
 				const char *pp = p;
-				while (read_space(&pp) && (out_value.mapping.empty() || (read_key(&pp, ",") && read_space(&pp))) && read_map_entry(&pp, entry)) {
+				while ((out_value.mapping.empty() || read_key(&pp, ",")) && read_map_entry(&pp, entry)) {
 					out_value.mapping.push_back(entry);
 					p = pp;
 				}
 				if (out_value.mapping.size() > 1) {
 					out_value.input = i;
 					*pos = p;
+					skip_spaces(pos);
 					return true;
 				}
 				out_value.mapping.clear();
@@ -409,16 +416,17 @@ StateBrush_Context::BrushConfig::read_input_entry(const char** pos, InputEntry& 
 bool
 StateBrush_Context::BrushConfig::read_row(const char** pos)
 {
+	skip_spaces(pos);
 	// Parse a row in the brush config file, mapping settings and input entries
 	const char *p = *pos;
 	String word;
-	if (read_space(&p) && read_word(&p, word)) {
+	if (read_word(&p, word)) {
 		for (int i = 0; i < BRUSH_SETTINGS_COUNT; ++i) {
 			if (word == setting_names[i]) {
-				if (read_space(&p) && read_float(&p, settings[i].base)) {
+				if (read_float(&p, settings[i].base)) {
 					InputEntry entry;
 					const char *pp = p;
-					while (read_space(&pp) && read_key(&pp, "|") && read_space(&pp) && read_input_entry(&pp, entry)) {
+					while (read_key(&pp, "|") && read_input_entry(&pp, entry)) {
 						settings[i].inputs.push_back(entry);
 						p = pp;
 					}
@@ -428,7 +436,8 @@ StateBrush_Context::BrushConfig::read_row(const char** pos)
 			}
 		}
 	}
-	return read_to_line_end(pos);
+	// skip_spaces(pos); // no need - skip_to_next_line() ignores all characters until find the ones for next-line
+	return skip_to_next_line(pos);
 }
 
 void
