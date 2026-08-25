@@ -184,6 +184,26 @@ public:
 	Smach::event_result event_stop_handler(const Smach::event& x);
 };	// END of class StateBrush_Context
 
+/* === P R O C E D U R E S ================================================= */
+
+/** add a new Import layer to canvas based on currently selected layer */
+Layer_Bitmap::Handle
+create_bitmap_layer_above_layer(etl::handle<synfigapp::CanvasInterface> canvas_interface)
+{
+	Layer::Handle selected_layer = canvas_interface->get_selection_manager()->get_selected_layer();
+	Canvas::Handle canvas;
+	int depth;
+	if (selected_layer.empty()) {
+		canvas = canvas_interface->get_canvas();
+		depth = 0;
+	} else {
+		canvas = selected_layer->get_canvas();
+		depth = selected_layer->get_depth();
+	}
+	Layer::Handle new_layer = canvas_interface->add_layer_to("import", canvas, depth);
+	return Layer_Bitmap::Handle::cast_dynamic(new_layer);
+}
+
 /* === M E T H O D S ======================================================= */
 
 const char* const StateBrush_Context::BrushConfig::setting_names[] = {
@@ -1123,8 +1143,7 @@ StateBrush_Context::create_image_layer_dialog()
 			get_canvas_interface()->get_instance().get(), _("Create Image Layer")
 			);
 
-		Layer::Handle new_layer = get_canvas_interface()->add_layer_to("import", get_canvas(), 0);
-		Layer_Bitmap::Handle bitmap_layer = etl::handle<synfig::Layer_Bitmap>::cast_dynamic(new_layer);
+		Layer_Bitmap::Handle bitmap_layer = create_bitmap_layer_above_layer(get_canvas_interface());
 
 		bitmap_layer->set_description(image_layer_id);
 		get_canvas_interface()->signal_layer_new_description()(bitmap_layer, bitmap_layer->get_description());
@@ -1257,10 +1276,7 @@ StateBrush_Context::find_or_create_layer()
 
 	// creates a canvas size layer
 	Canvas::Handle canvas = canvas_view->get_canvas();
-	Layer::Handle new_layer = canvas_view->canvas_interface()->add_layer_to("import", canvas);
-	if (!new_layer)
-		return Layer_Bitmap::Handle();
-	layer = etl::handle<synfig::Layer_Bitmap>::cast_dynamic(new_layer);
+	layer = create_bitmap_layer_above_layer(get_canvas_interface());
 	if (!layer)
 		return Layer_Bitmap::Handle();
 
