@@ -827,7 +827,7 @@ StateBrush_Context::create_settings_tab(Gtk::Notebook* notebook)
 
 			if (i == BRUSH_RADIUS_LOGARITHMIC) {
 				Real brush_radius = expf(selected_brush_config.settings[i].base);
-				synfigapp::Main::set_bline_width(Distance(brush_radius, Distance::SYSTEM_UNITS));
+				synfigapp::Main::set_bline_width(Distance(brush_radius*2, Distance::SYSTEM_PIXELS));
 				update_cursor();
 			}
 
@@ -892,7 +892,7 @@ StateBrush_Context::select_brush(Gtk::ToggleToolButton* button, const filesystem
 		selected_brush_button = button;
 
 		Real brush_radius = expf(selected_brush_config.settings[BRUSH_RADIUS_LOGARITHMIC].base);
-		synfigapp::Main::set_bline_width(Distance(brush_radius, Distance::SYSTEM_UNITS));
+		synfigapp::Main::set_bline_width(Distance(brush_radius*2, Distance::SYSTEM_PIXELS));
 		update_cursor();
 
 		// apply brush settings to sliders
@@ -911,7 +911,7 @@ StateBrush_Context::select_brush(Gtk::ToggleToolButton* button, const filesystem
 void
 StateBrush_Context::update_cursor()
 {
-	const float brush_radius_px = synfigapp::Main::get_bline_width();
+	const float brush_radius_px = synfigapp::Main::get_bline_width() / 2.;
 	float display_radius = 10.0f;
 
 	if (layer && layer->rendering_surface) {
@@ -1428,11 +1428,11 @@ StateBrush_Context::event_mouse_down_handler(const Smach::event& x)
 	Real val = max_rgb;
 	Real sat = fabs(max_rgb) > epsilon ? 1.0 - (min_rgb / max_rgb) : 0;
 	Real hue = fabs(diff) <= epsilon ?
-				   0 : max_rgb == r ?
-										   60.0 * fmod ((g - b)/(diff), 6.0) : max_rgb == g ?
-														  60.0 * (((b - r)/(diff))+2.0) : 60.0 * (((r - g)/(diff))+4.0);
+			0 : max_rgb == r ?
+				60.0 * fmod ((g - b)/(diff), 6.0) : max_rgb == g ?
+					60.0 * (((b - r)/(diff))+2.0) : 60.0 * (((r - g)/(diff))+4.0);
 
-	float radius = log(synfigapp::Main::get_bline_width());
+	float radius = log(synfigapp::Main::get_bline_width()/2);
 
 	// adjust the radius based on inputs we assume that all inputs make their max effect
 	// fixes cursor/dab mismatch
