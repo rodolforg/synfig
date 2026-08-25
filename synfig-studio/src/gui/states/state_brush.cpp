@@ -468,7 +468,12 @@ StateBrush_Context::BrushConfig::load(const filesystem::Path& filename)
 
 	const char *pos = buffer;
 	if (pos) {
-		while (read_row(&pos)) {
+		skip_spaces(&pos);
+		if (*pos == '{') {
+			synfig::error(_("Brush: version not supported for %s (only versions 1 and 2 are supported)"), filename.c_str());
+		} else {
+			while (read_row(&pos))
+			{ }
 		}
 	}
 	if (buffer)
