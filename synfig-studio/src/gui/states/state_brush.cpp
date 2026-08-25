@@ -112,8 +112,8 @@ public:
 		void apply(brushlib::Brush& brush);
 
 	private:
-		static const char* setting_names[BRUSH_SETTINGS_COUNT];
-		static const char* input_names[INPUT_COUNT];
+		static const char* const setting_names[BRUSH_SETTINGS_COUNT];
+		static const char* const input_names[INPUT_COUNT];
 
 		bool read_row(const char** pos);
 		bool read_space(const char** pos);
@@ -186,7 +186,7 @@ public:
 
 /* === M E T H O D S ======================================================= */
 
-const char * StateBrush_Context::BrushConfig::setting_names[] = {
+const char* const StateBrush_Context::BrushConfig::setting_names[] = {
 	"opaque",                      // BRUSH_OPAQUE                       0
 	"opaque_multiply",             // BRUSH_OPAQUE_MULTIPLY              1
 	"opaque_linearize",            // BRUSH_OPAQUE_LINEARIZE             2
@@ -231,7 +231,7 @@ const char * StateBrush_Context::BrushConfig::setting_names[] = {
 	"lock_alpha"                   // BRUSH_LOCK_ALPHA                  41
 };
 
-const char * StateBrush_Context::BrushConfig::input_names[] = {
+const char* const StateBrush_Context::BrushConfig::input_names[] = {
 	"pressure",                    // INPUT_PRESSURE                     0
 	"speed1",                      // INPUT_SPEED1                       1
 	"speed2",                      // INPUT_SPEED2                       2
