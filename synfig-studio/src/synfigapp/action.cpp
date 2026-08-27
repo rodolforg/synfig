@@ -49,6 +49,7 @@
 #include "actions/layercopy.h"
 #include "actions/layerfit.h"
 #include "actions/layermakebline.h"
+#include "actions/layerpaint.h"
 #include "actions/layerparamset.h"
 #include "actions/layerparamsetstatic.h"
 #include "actions/layerparamunsetstatic.h"
@@ -191,6 +192,7 @@ Action::Main::Main()
 {
 	book_=new synfigapp::Action::Book();
 
+	ADD_ACTION(Action::LayerPaint);
 	ADD_ACTION(Action::LayerRemove);
 	ADD_ACTION(Action::LayerMove);
 	ADD_ACTION(Action::LayerRaise);

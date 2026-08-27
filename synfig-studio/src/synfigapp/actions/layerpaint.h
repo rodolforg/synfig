@@ -1,9 +1,11 @@
 /* === S Y N F I G ========================================================= */
 /*!	\file layerpaint.h
-**	\brief Template File
+**	\brief Brush stroke action for StateBrush with live preview
 **
 **	\legal
-**	......... ... 2014 Ivan Mahonin
+**	Copyright (c) 2014 Ivan Mahonin
+**	......... ... 2025 Abdelhadi Wael
+**	......... ... 2026 Synfig Contributors
 **
 **	This file is part of Synfig.
 **
@@ -25,16 +27,13 @@
 
 /* === S T A R T =========================================================== */
 
-#ifndef __SYNFIG_APP_ACTION_LAYERPAINT_H
-#define __SYNFIG_APP_ACTION_LAYERPAINT_H
+#ifndef SYNFIG_APP_ACTION_LAYERPAINT_H
+#define SYNFIG_APP_ACTION_LAYERPAINT_H
 
 /* === H E A D E R S ======================================================= */
 
-#include <synfig/guid.h>
 #include <synfig/layers/layer_bitmap.h>
-
 #include <synfigapp/action.h>
-
 #include <brushlib.h>
 
 /* === M A C R O S ========================================================= */
@@ -54,55 +53,59 @@ class LayerPaint :
 	public CanvasSpecific
 {
 public:
-	struct PaintPoint {
-		float x, y, pressure;
+	struct StrokePoint {
+		float x, y;
+		synfig::Real pressure;
 		double dtime;
-		PaintPoint(): x(0), y(0), pressure(0), dtime(0) { }
-		PaintPoint(float x, float y, float pressure, double dtime):
-			x(x), y(y), pressure(pressure), dtime(dtime) { }
+		StrokePoint(): x(0), y(0), pressure(0.0), dtime(0.0) { }
+		StrokePoint(float x, float y, synfig::Real pr, double dtime):
+			x(x), y(y), pressure(pr), dtime(dtime) { }
 	};
 
 	class PaintStroke {
+	public:
+		enum UndoMode {
+			REDRAW,
+			CHECKPOINTING,
+			SURFACE_SAVING
+		};
+
 	private:
-		static PaintStroke *first, *last;
-
-		PaintStroke *prev, *next;
-		PaintStroke *prevSameLayer, *nextSameLayer;
-
 		synfig::Layer_Bitmap::Handle layer;
-		brushlib::Brush brush_;
+		std::unique_ptr<brushlib::Brush> brush_;
+		synfig::Point new_tl, new_br;
+		synfig::Point original_tl, original_br;
+		synfig::Surface original_surface;
+		std::unique_ptr<synfig::Surface> final_surface;
 
-		synfig::Surface surface;
-		synfig::Point tl;
-		synfig::Point br;
-
-		synfig::Point new_tl;
-		synfig::Point new_br;
-
-		std::vector<PaintPoint> points;
+		std::vector<StrokePoint> points;
 		bool prepared;
 		bool applied;
-
-		void paint_prev(synfig::Surface &surface);
-		void paint_self(synfig::Surface &surface);
-		void reset(const PaintPoint &point);
+		int stroke_index;
+		UndoMode undo_mode;
 
 	public:
 		PaintStroke();
 		~PaintStroke();
 
-		void set_layer(synfig::Layer_Bitmap::Handle layer) { assert(!prepared); this->layer = layer; }
+		void set_layer(synfig::Layer_Bitmap::Handle layer) { this->layer = layer; }
 		synfig::Layer_Bitmap::Handle get_layer() const { return layer; }
 
-		brushlib::Brush &brush() { assert(!prepared); return brush_; }
-		const brushlib::Brush &get_brush() const { return brush_; }
+		void set_undo_mode(UndoMode mode) { undo_mode = mode; }
+		void set_final_data(std::unique_ptr<synfig::Surface> surface) { final_surface = std::move(surface); }
+
+		brushlib::Brush& brush() { return *brush_; }
+		const brushlib::Brush& get_brush() const { return *brush_; }
+
+		void add_point(const StrokePoint& point) { points.push_back(point); }
+		const std::vector<StrokePoint>& get_points() const { return points; }
 
 		bool is_prepared() const { return prepared; }
+		bool is_applied() const { return applied; }
 
 		void prepare();
-		void undo();
 		void apply();
-		void add_point_and_apply(const PaintPoint &point);
+		void undo();
 	};
 
 private:
@@ -115,19 +118,20 @@ public:
 	LayerPaint();
 
 	static ParamVocab get_param_vocab();
-	static bool is_candidate(const ParamList &x);
+	static bool is_candidate(const ParamList& x);
 
-	virtual bool set_param(const synfig::String& name, const Param &);
-	virtual bool is_ready()const;
+	virtual bool set_param(const synfig::String& name, const Param& param);
+	virtual bool is_ready() const;
 
 	virtual void perform();
 	virtual void undo();
 
+	static void cleanup_history();
 	ACTION_MODULE_EXT
 };
 
-}; // END of namespace action
-}; // END of namespace studio
+}; // END of namespace Action
+}; // END of namespace synfigapp
 
 /* === E N D =============================================================== */
 

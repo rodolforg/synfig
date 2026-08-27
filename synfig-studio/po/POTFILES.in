@@ -396,8 +396,8 @@ src/synfigapp/actions/layermakebline.cpp
 src/synfigapp/actions/layermakebline.h
 src/synfigapp/actions/layermove.cpp
 src/synfigapp/actions/layermove.h
-src/synfigapp/actions/layerpaint.cpp
 src/synfigapp/actions/layerpaint.h
+src/synfigapp/actions/layerpaint.cpp
 src/synfigapp/actions/layerparamconnect.cpp
 src/synfigapp/actions/layerparamconnect.h
 src/synfigapp/actions/layerparamdisconnect.cpp
