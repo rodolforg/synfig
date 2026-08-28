@@ -30,17 +30,19 @@
 
 /* === H E A D E R S ======================================================= */
 
-#include <gui/docks/dockable.h>
-#include <gui/smach.h>
+#include <map>
+
+#include <giomm/simpleactiongroup.h>
 
 #include <gtkmm/radiotoolbutton.h>
 #include <gtkmm/toolitemgroup.h>
 #include <gtkmm/box.h>
 
-#include <map>
-
 #include <synfig/handle.h>
 #include <synfig/string.h>
+
+#include <gui/docks/dockable.h>
+#include <gui/smach.h>
 
 /* === M A C R O S ========================================================= */
 
@@ -64,6 +66,8 @@ class Dock_Toolbox : public Dockable
 	std::map<synfig::String, Gtk::RadioToolButton*> state_button_map;
 
 	Gtk::RadioToolButton::Group radio_tool_button_group;
+
+	Glib::RefPtr<Gio::SimpleActionGroup> action_group_;
 
 	void on_drop_drag_data_received(const Glib::RefPtr<Gdk::DragContext>& context, int x, int y, const Gtk::SelectionData& selection_data, guint info, guint time);
 

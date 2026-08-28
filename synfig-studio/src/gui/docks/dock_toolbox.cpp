@@ -62,6 +62,7 @@ using namespace studio;
 /* === M A C R O S ========================================================= */
 
 /* === G L O B A L S ======================================================= */
+const std::string action_prefix = "default-colors";
 
 /* === P R O C E D U R E S ================================================= */
 
@@ -69,7 +70,8 @@ using namespace studio;
 
 
 Dock_Toolbox::Dock_Toolbox():
-	Dockable("toolbox",_("Toolbox"),"about_icon")
+	Dockable("toolbox",_("Toolbox"),"about_icon"),
+	action_group_(Gio::SimpleActionGroup::create())
 {
 	set_use_scrolled(false);
 	set_size_request(-1,-1);
@@ -112,6 +114,33 @@ Dock_Toolbox::Dock_Toolbox():
 	signal_drag_data_received().connect( sigc::mem_fun(*this, &studio::Dock_Toolbox::on_drop_drag_data_received) );
 
 	App::signal_present_all().connect(sigc::mem_fun0(*this,&Dock_Toolbox::present));
+
+	struct ActionMetadata {
+		std::string name;
+		std::string icon;
+		// std::string accel;
+		std::string label;
+		std::string tooltip;
+		std::function<void()> slot;
+	};
+
+	auto reset_colors = []() {
+		synfigapp::Main::set_fill_color(Color::white());
+		synfigapp::Main::set_outline_color(Color::black());
+	};
+	const std::vector<ActionMetadata> action_list = {
+		{"swap",  "swap_colors_icon",  N_("Swap Colors"),  N_("Swap Fill and\nOutline Colors"),   sigc::ptr_fun(synfigapp::Main::color_swap) },
+		{"reset", "reset_colors_icon", N_("Reset Colors"), N_("Reset Colors to Black and White"), reset_colors },
+	};
+
+	for (const auto& action : action_list) {
+		App::instance()->get_action_database()->add(ActionDatabase::Entry{action_prefix + "." + action.name, action.label, "", action.icon, action.tooltip});
+		action_group_->add_action(action.name, action.slot);
+	}
+
+	// Let's make the action available to the whole window for allowing global accelerators
+	// Otherwise, for local accels, we could just call this->insert_action_group(action_prefix, action_group_);
+	App::main_window->insert_action_group(action_prefix, action_group_);
 
 	App::get_state_manager()->signal_state_registered().connect(sigc::mem_fun(*this, &Dock_Toolbox::add_state));
 	App::get_state_manager()->signal_state_selected().connect(sigc::mem_fun(*this, &Dock_Toolbox::on_state_changed));
