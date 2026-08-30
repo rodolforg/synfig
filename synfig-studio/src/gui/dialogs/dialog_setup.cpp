@@ -78,6 +78,7 @@ enum ShortcutsColumns{
 	SHORTCUT_COLUMN_ID_ACTION_MODS = 2,
 	SHORTCUT_COLUMN_ID_ACTION_SHORT_NAME = 3,
 	SHORTCUT_COLUMN_ID_IS_ACTION = 4,
+	SHORTCUT_COLUMN_ID_ACTION_TOOLTIP = 5,
 };
 
 /* === P R O C E D U R E S ================================================= */
@@ -520,13 +521,13 @@ Dialog_Setup::create_shortcuts_page(Dialog_Template::PageInfo pi)
 	Gtk::TreeModelColumn<Gdk::ModifierType> action_mods_col;
 	Gtk::TreeModelColumn<std::string> action_short_name_col;
 	Gtk::TreeModelColumn<bool> action_is_action_col;
-	Gtk::TreeModelColumn<bool> action_is_old_action_col;
+	Gtk::TreeModelColumn<std::string> action_tooltip_col;
 	columns.add(action_name_col);  //SHORTCUT_COLUMN_ID_ACTION_NAME
 	columns.add(action_key_col);   //SHORTCUT_COLUMN_ID_ACTION_KEY
 	columns.add(action_mods_col);  //SHORTCUT_COLUMN_ID_ACTION_MODS
 	columns.add(action_short_name_col);  //SHORTCUT_COLUMN_ID_ACTION_SHORT_NAME
 	columns.add(action_is_action_col);  //SHORTCUT_COLUMN_ID_IS_ACTION
-	columns.add(action_is_old_action_col);  //SHORTCUT_COLUMN_ID_IS_OLD_ACTION
+	columns.add(action_tooltip_col);  //SHORTCUT_COLUMN_ID_ACTION_TOOLTIP
 	auto model = Gtk::TreeStore::create(columns);
 
 	treeview_accels = manage(new Gtk::TreeView(model));
@@ -544,6 +545,8 @@ Dialog_Setup::create_shortcuts_page(Dialog_Template::PageInfo pi)
 	treeview_accels->get_column(shortcut_col_idx)->add_attribute(renderer_accel, "accel-key", action_key_col);
 	treeview_accels->get_column(shortcut_col_idx)->add_attribute(renderer_accel, "accel-mods", action_mods_col);
 	treeview_accels->get_column(shortcut_col_idx)->add_attribute(renderer_accel, "visible", action_is_action_col);
+
+	treeview_accels->append_column(_("Description"), action_tooltip_col);
 
 	Gtk::ScrolledWindow* scroll = manage(new Gtk::ScrolledWindow());
 	scroll->add(*treeview_accels);
@@ -1473,6 +1476,7 @@ Dialog_Setup::refresh()
 		current_section_row.set_value(SHORTCUT_COLUMN_ID_ACTION_KEY, guint(0));
 		current_section_row.set_value(SHORTCUT_COLUMN_ID_ACTION_MODS, Gdk::ModifierType(0));
 		current_section_row.set_value(SHORTCUT_COLUMN_ID_IS_ACTION, false);
+		current_section_row.set_value(SHORTCUT_COLUMN_ID_ACTION_TOOLTIP, std::string());
 
 		auto entries = App::get_action_database()->get_entries_for_group(group);
 		// sort by localized label
@@ -1503,6 +1507,7 @@ Dialog_Setup::refresh()
 			row.set_value(SHORTCUT_COLUMN_ID_ACTION_MODS, accel.get_mod());
 			row.set_value(SHORTCUT_COLUMN_ID_ACTION_SHORT_NAME, action_label);
 			row.set_value(SHORTCUT_COLUMN_ID_IS_ACTION, true);
+			row.set_value(SHORTCUT_COLUMN_ID_ACTION_TOOLTIP, entry.tooltip_);
 		}
 	}
 
