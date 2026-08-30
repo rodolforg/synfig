@@ -79,6 +79,7 @@ enum ShortcutsColumns{
 	SHORTCUT_COLUMN_ID_ACTION_SHORT_NAME = 3,
 	SHORTCUT_COLUMN_ID_IS_ACTION = 4,
 	SHORTCUT_COLUMN_ID_ACTION_TOOLTIP = 5,
+	SHORTCUT_COLUMN_ID_SEARCH_STRING = 6,
 };
 
 /* === P R O C E D U R E S ================================================= */
@@ -522,19 +523,28 @@ Dialog_Setup::create_shortcuts_page(Dialog_Template::PageInfo pi)
 	Gtk::TreeModelColumn<std::string> action_short_name_col;
 	Gtk::TreeModelColumn<bool> action_is_action_col;
 	Gtk::TreeModelColumn<std::string> action_tooltip_col;
+	Gtk::TreeModelColumn<Glib::ustring> action_search_string_col;
 	columns.add(action_name_col);  //SHORTCUT_COLUMN_ID_ACTION_NAME
 	columns.add(action_key_col);   //SHORTCUT_COLUMN_ID_ACTION_KEY
 	columns.add(action_mods_col);  //SHORTCUT_COLUMN_ID_ACTION_MODS
 	columns.add(action_short_name_col);  //SHORTCUT_COLUMN_ID_ACTION_SHORT_NAME
 	columns.add(action_is_action_col);  //SHORTCUT_COLUMN_ID_IS_ACTION
 	columns.add(action_tooltip_col);  //SHORTCUT_COLUMN_ID_ACTION_TOOLTIP
+	columns.add(action_search_string_col);  //SHORTCUT_COLUMN_ID_SEARCH_STRING
 	auto model = Gtk::TreeStore::create(columns);
 
 	treeview_accels = manage(new Gtk::TreeView(model));
 	treeview_accels->set_hexpand(true);
 	treeview_accels->set_vexpand(true);
 	treeview_accels->append_column(_("Action"), action_short_name_col);
-	treeview_accels->set_search_column(action_short_name_col);
+	treeview_accels->set_search_column(action_search_string_col);
+	auto search_anywhere = [](const Glib::RefPtr<Gtk::TreeModel>& model, int col, const Glib::ustring& key, const Gtk::TreeModel::iterator& iter) -> bool {
+		const Gtk::TreeRow row = *iter;
+		Glib::ustring text;
+		row.get_value(col, text);
+		return text.casefold().find(key) == Glib::ustring::npos; // FALSE means it matches (!!!)
+	};
+	treeview_accels->set_search_equal_func(search_anywhere);
 
 	renderer_accel.property_editable() = true;
 
@@ -1508,6 +1518,7 @@ Dialog_Setup::refresh()
 			row.set_value(SHORTCUT_COLUMN_ID_ACTION_SHORT_NAME, action_label);
 			row.set_value(SHORTCUT_COLUMN_ID_IS_ACTION, true);
 			row.set_value(SHORTCUT_COLUMN_ID_ACTION_TOOLTIP, entry.tooltip_);
+			row.set_value(SHORTCUT_COLUMN_ID_SEARCH_STRING, entry.name_ + "|" + action_label + "|" + entry.tooltip_);
 		}
 	}
 
