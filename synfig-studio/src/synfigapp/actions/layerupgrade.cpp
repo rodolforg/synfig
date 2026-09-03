@@ -64,19 +64,23 @@ ACTION_SET_VERSION(Action::LayerUpgrade,"0.0");
 
 /* === M E T H O D S ======================================================= */
 
-// ponytail: the deprecated->current layer name map. Add a pair here to enable
-// its upgrade; no other code in this file needs to change. Linear scan of a
-// tiny list is fine while pairs stay few -- switch to std::map if it grows.
 synfig::String
-Action::LayerUpgrade::get_target_layer_name(const synfig::String& source_layer_name)
+Action::LayerUpgrade::get_layer_param(const Layer::LooseHandle& layer)
 {
-	static const std::pair<const char*, const char*> table[] = {
-		{ "bevel_deprecated", "bevel" }
+	struct BrokenInfo
+	{
+		const char* layer_name;
+		const char* param_name;
+		bool param_value;
 	};
-	for(const auto& entry : table)
-		if(source_layer_name == entry.first)
-			return synfig::String(entry.second);
-	return synfig::String();
+	static const BrokenInfo table[] = {
+									   { "bevel", "broken_rendering_0_3", true },
+									   };
+	for (const auto& entry : table)
+		if (layer->get_name() == entry.layer_name)
+			if (layer->get_param(entry.param_name).get(bool()) == entry.param_value)
+				return entry.param_name;
+	return synfig::String{};
 }
 
 Action::ParamVocab
@@ -101,14 +105,13 @@ Action::LayerUpgrade::is_candidate(const ParamList& x)
 
 	// Candidate only when EVERY selected layer has a known upgrade target.
 	std::pair<ParamList::const_iterator, ParamList::const_iterator> range(x.equal_range("layer"));
-	if(range.first==range.second)
+	if (range.first == range.second)
 		return false;
-	for(ParamList::const_iterator it(range.first); it!=range.second; ++it)
-	{
-		if(it->second.get_type()!=Param::TYPE_LAYER)
+	for (ParamList::const_iterator it(range.first); it != range.second; ++it) {
+		if (it->second.get_type()!=Param::TYPE_LAYER)
 			return false;
 		const Layer::Handle layer(it->second.get_layer());
-		if(!layer || get_target_layer_name(layer->get_name()).empty())
+		if (!layer || get_layer_param(layer).empty())
 			return false;
 	}
 	return true;
@@ -117,19 +120,18 @@ Action::LayerUpgrade::is_candidate(const ParamList& x)
 bool
 Action::LayerUpgrade::set_param(const synfig::String& name, const Action::Param& param)
 {
-	if(name=="layer" && param.get_type()==Param::TYPE_LAYER)
-	{
+	if (name=="layer" && param.get_type() == Param::TYPE_LAYER) {
 		layers.push_back(param.get_layer());
 		return true;
 	}
 
-	return Action::CanvasSpecific::set_param(name,param);
+	return Action::CanvasSpecific::set_param(name, param);
 }
 
 bool
-Action::LayerUpgrade::is_ready()const
+Action::LayerUpgrade::is_ready() const
 {
-	if(layers.empty())
+	if (layers.empty())
 		return false;
 	return Action::CanvasSpecific::is_ready();
 }
@@ -137,112 +139,23 @@ Action::LayerUpgrade::is_ready()const
 void
 Action::LayerUpgrade::prepare()
 {
-	if(!first_time())
+	if (!first_time())
 		return;
 
-	if(layers.empty())
+	if (layers.empty())
 		throw Error(_("No layers to upgrade"));
 
-	// ponytail: process descending by depth so mutations at higher indices
-	// never shift the captured depth of lower layers (multi-select drift guard).
-	layers.sort([](const Layer::Handle& a, const Layer::Handle& b)
-		{ return a->get_depth() > b->get_depth(); });
-
-	for(const Layer::Handle& layer : layers)
-	{
-		const String target_name(get_target_layer_name(layer->get_name()));
-		if(target_name.empty())
+	for (const Layer::Handle& layer : layers) {
+		const String param_name(get_layer_param(layer));
+		if (param_name.empty())
 			continue; // shouldn't happen -- is_candidate already filtered
-		prepare_upgrade_layer(layer, target_name);
-	}
-}
 
-void
-Action::LayerUpgrade::prepare_upgrade_layer(const synfig::Layer::Handle& layer, const synfig::String& target_name)
-{
-	if(!layer)
-		return;
+		Action::Handle action(Action::create("ValueDescSet"));
+		action->set_param("canvas", get_canvas());
+		action->set_param("canvas_interface", get_canvas_interface());
 
-	Canvas::Handle subcanvas(layer->get_canvas());
-
-	// Find the iterator for the layer
-	Canvas::iterator iter(find(subcanvas->begin(),subcanvas->end(),layer));
-
-	// If we couldn't find the layer in the canvas, then bail
-	if(*iter!=layer)
-		throw Error(_("This layer doesn't exist anymore."));
-
-	// If the subcanvas isn't the same as the canvas,
-	// then it had better be an inline canvas. If not, bail.
-	if(get_canvas()!=subcanvas && !subcanvas->is_inline())
-		throw Error(_("This layer doesn't belong to this canvas anymore"));
-
-	const int depth(layer->get_depth());
-
-	// create the replacement layer and carry over its state.
-	// Deprecated and current layers are expected to share an identical
-	// parameter vocabulary, so set_param_list transfers everything
-	// (amount, blend_method, z_depth, type, colors, angle, ...). name__/
-	// version__ are not part of the vocab, so the new layer keeps its own
-	// register identity.
-	Layer::Handle new_layer(Layer::create(target_name));
-	new_layer->set_canvas(subcanvas);
-	get_canvas_interface()->layer_set_defaults(new_layer);
-	new_layer->set_param_list(layer->get_param_list());
-
-	// description: keep only user-set values; an empty description falls back
-	// to the new layer's local name. Drop text that equals the old layer's
-	// default display name too, so the upgrade is invisible.
-	const String& desc(layer->get_description());
-	if(!desc.empty() && desc != layer->get_local_name())
-		new_layer->set_description(desc);
-
-	new_layer->set_active(layer->active());
-	new_layer->set_exclude_from_rendering(layer->get_exclude_from_rendering());
-
-	// group membership: group_ is synced into the canvas group_db_ when the
-	// layer is inserted (Canvas::insert), so setting it before LayerAdd is enough.
-	if(!layer->get_group().empty())
-		new_layer->add_to_group(layer->get_group());
-
-	// Reconnect animated (dynamic) parameters by SHARING the value nodes,
-	// not cloning them, so exported/animated links stay referenced.
-	for(const auto& dp : layer->dynamic_param_list())
-	{
-		Action::Handle action(Action::create("LayerParamConnect"));
-		action->set_param("canvas",subcanvas);
-		action->set_param("canvas_interface",get_canvas_interface());
-		action->set_param("layer",new_layer);
-		action->set_param("param",dp.first);
-		action->set_param("value_node",ValueNode::Handle(dp.second));
-		add_action(action);
-	}
-
-	// add the new layer
-	{
-		Action::Handle action(Action::create("LayerAdd"));
-		action->set_param("canvas",subcanvas);
-		action->set_param("canvas_interface",get_canvas_interface());
-		action->set_param("new",new_layer);
-		add_action(action);
-	}
-
-	// move it into the old layer's position
-	{
-		Action::Handle action(Action::create("LayerMove"));
-		action->set_param("canvas",subcanvas);
-		action->set_param("canvas_interface",get_canvas_interface());
-		action->set_param("layer",new_layer);
-		action->set_param("new_index",depth);
-		add_action(action);
-	}
-
-	// finally, remove the deprecated layer
-	{
-		Action::Handle action(Action::create("LayerRemove"));
-		action->set_param("canvas",subcanvas);
-		action->set_param("canvas_interface",get_canvas_interface());
-		action->set_param("layer",layer);
+		action->set_param("value_desc", synfigapp::ValueDesc(layer, param_name));
+		action->set_param("new_value", ValueBase(false));
 		add_action(action);
 	}
 }

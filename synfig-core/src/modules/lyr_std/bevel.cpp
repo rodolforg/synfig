@@ -98,7 +98,8 @@ Layer_Bevel::Layer_Bevel():
 	param_softness (ValueBase(Real(0.1))),
 	param_color1(ValueBase(Color::white())),
 	param_color2(ValueBase(Color::black())),
-	param_depth(ValueBase(Real(0.2)))
+	param_depth(ValueBase(Real(0.2))),
+	param_broken_rendering_0_3(ValueBase(bool(false)))
 {
 	param_angle=ValueBase(Angle::deg(135));
 	calc_offset();
@@ -142,6 +143,8 @@ Layer_Bevel::set_param(const String &param, const ValueBase &value)
 	if (param == "fake_origin")
 		return true;
 
+	IMPORT_VALUE(param_broken_rendering_0_3);
+
 	return Layer_Composite::set_param(param,value);
 }
 
@@ -160,6 +163,8 @@ Layer_Bevel::get_param(const String &param)const
 	{
 		return Vector();
 	}
+
+	EXPORT_VALUE(param_broken_rendering_0_3);
 
 	EXPORT_NAME();
 	EXPORT_VERSION();
@@ -381,6 +386,145 @@ private:
 SYNFIG_EXPORT rendering::Task::Token TaskBevelSW::token(
 	DescReal<TaskBevelSW, TaskBevel>("BevelSW") );
 
+class TaskBevelDeprecated_ : public TaskBevel
+{
+public:
+	typedef etl::handle<TaskBevel> Handle;
+	SYNFIG_EXPORT static Token token;
+	Token::Handle get_token() const override { return token.handle(); }
+};
+
+SYNFIG_EXPORT rendering::Task::Token TaskBevelDeprecated_::token(
+	DescAbstract<TaskBevelDeprecated_>("BevelDeprecated_") );
+
+class TaskBevelDeprecatedSW_ : public TaskBevelDeprecated_, public synfig::rendering::TaskSW
+{
+public:
+	typedef etl::handle<TaskBevel> Handle;
+	SYNFIG_EXPORT static Token token;
+	Token::Handle get_token() const override { return token.handle(); }
+
+	bool run(RunParams&) const override {
+		if (!is_valid())
+			return true;
+		if (!sub_task(0))
+			return false;
+
+		Rect common_source_rect;
+		rect_set_intersect(common_source_rect, source_rect, sub_task(0)->source_rect);
+		if (!common_source_rect.is_valid())
+			return false;
+
+		LockWrite la(this);
+		if (!la)
+			return false;
+
+		synfig::surface<float> blurred;
+
+		const Vector size(softness,softness);
+
+		{
+			synfig::surface<float> alpha_surface;
+			get_alpha_surface(alpha_surface);
+			//blur the image
+			Blur(size, type)(alpha_surface, sub_task(0)->source_rect.get_size(), blurred);
+		}
+
+		const Vector ppu = get_pixels_per_unit();
+		const Real pw = 1/ppu[0];
+		const Real ph = 1/ppu[1];
+		int halfsizex, halfsizey;
+		bevel_calc_halfsize(size[0], size[1], type, pw, ph, halfsizex, halfsizey);
+
+		const int offset_u(round_to_int(offset[0]/pw)),offset_v(round_to_int(offset[1]/ph));
+
+		const float u0(offset[0]/pw),   v0(offset[1]/ph);
+		const float u1(offset45[0]/pw), v1(offset45[1]/ph);
+
+		// convert vector-coordinates to raster-coordinates (i.e. source rect to target rect)
+		Matrix transformation_matrix;
+		transformation_matrix.m00 = ppu[0];
+		transformation_matrix.m11 = ppu[1];
+		transformation_matrix.m20 = target_rect.minx - source_rect.minx*ppu[0];
+		transformation_matrix.m21 = target_rect.miny - source_rect.miny*ppu[1];
+
+		const Point ftarget_min = transformation_matrix.get_transformed(source_rect.get_min());
+		const Point ftarget_max = transformation_matrix.get_transformed(source_rect.get_max());
+		const PointInt target_min = {round_to_int(ftarget_min[0]), round_to_int(ftarget_min[1])};
+		const PointInt target_max = {round_to_int(ftarget_max[0]), round_to_int(ftarget_max[1])};
+		int v = halfsizey+std::abs(offset_v);
+		for (int iy = target_min[1]; iy < target_max[1]; ++iy, ++v) {
+			int u = halfsizex+std::abs(offset_u);
+			for (int ix = target_min[0]; ix < target_max[0]; ++ix, ++u) {
+
+				Real alpha(0);
+				Color shade;
+
+				alpha += -blurred.linear_sample(u+u0, v+v0);
+				alpha -= -blurred.linear_sample(u-u0, v-v0);
+				// This is the part that broke the rendering
+				alpha += -blurred.linear_sample(u+u1, v+v1)*0.5f;
+				alpha += -blurred.linear_sample(u+v1, v-u1)*0.5f;
+				alpha -= -blurred.linear_sample(u-u1, v-v1)*0.5f;
+				alpha -= -blurred.linear_sample(u-v1, v+u1)*0.5f;
+				// End of broken part
+
+				if(solid)
+				{
+					alpha/=4.0f;
+					alpha+=0.5f;
+					shade=Color::blend(color1,color2,alpha,Color::BLEND_STRAIGHT);
+				}
+				else
+				{
+					alpha/=2;
+					if(alpha>0)
+						shade=color1,shade.set_a(shade.get_a()*alpha);
+					else
+						shade=color2,shade.set_a(shade.get_a()*-alpha);
+				}
+
+				if (shade.get_a())
+					la->get_surface()[iy][ix] = shade;
+				else
+					la->get_surface()[iy][ix] = Color::alpha();
+			}
+		}
+		return true;
+	}
+
+private:
+	bool get_alpha_surface(synfig::surface<float>& output) const
+	{
+		LockRead lb(sub_tasks[0]);
+		if (!lb)
+			return false;
+
+		const Surface& context = lb->get_surface();
+		synfig::surface<float>& alpha_surface = output;
+		alpha_surface.set_wh(context.get_w(), context.get_h());
+		if (!use_luma) {
+			for (int y = 0; y < context.get_h(); ++y) {
+				for (int x = 0; x < context.get_w(); ++x) {
+					alpha_surface[y][x] = context[y][x].get_a();
+				}
+			}
+		} else {
+			for (int y = 0; y < context.get_h(); ++y) {
+				for (int x = 0; x < context.get_w(); ++x) {
+					const auto& value = context[y][x];
+					alpha_surface[y][x] = value.get_a() * value.get_y();
+				}
+			}
+		}
+
+		return true;
+	}
+};
+
+SYNFIG_EXPORT rendering::Task::Token TaskBevelDeprecatedSW_::token(
+	DescReal<TaskBevelDeprecatedSW_, TaskBevelDeprecated_>("BevelDeprecatedSW_") );
+
 ////
 
 Layer::Vocab
@@ -431,6 +575,11 @@ Layer_Bevel::get_param_vocab(void)const
 		.hidden()
 	);
 
+	ret.push_back(ParamDesc("broken_rendering_0_3")
+		.set_local_name(_("Broken Rendering"))
+		.set_description(_("Support wrong implementation of Bevel layer in Synfig versions from 1.2 to 1.5.5"))
+		.hidden()
+	);
 	return ret;
 }
 
@@ -461,7 +610,11 @@ Layer_Bevel::build_composite_fork_task_vfunc(ContextParams /*context_params*/, r
 	if (!sub_task)
 		return sub_task;
 
-	TaskBevel::Handle task_bevel(new TaskBevel());
+	TaskBevel::Handle task_bevel;
+	if (param_broken_rendering_0_3.get(bool()))
+		task_bevel = new TaskBevelDeprecated_();
+	else
+		task_bevel = new TaskBevel();
 	task_bevel->softness = param_softness.get(Real());
 	task_bevel->type = param_type.get(int());
 	task_bevel->color1 = param_color1.get(Color());
@@ -475,4 +628,12 @@ Layer_Bevel::build_composite_fork_task_vfunc(ContextParams /*context_params*/, r
 	task_bevel->sub_task(0) = sub_task->clone_recursive();
 
 	return task_bevel;
+}
+
+bool
+Layer_Bevel::set_version(const String& ver)
+{
+	if (ver >= "0.2" && ver < "0.4" && get_canvas()->get_version() >= "1.1")
+		param_broken_rendering_0_3 = true;
+	return true;
 }

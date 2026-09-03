@@ -25,8 +25,8 @@
 
 /* === S T A R T =========================================================== */
 
-#ifndef __SYNFIG_APP_ACTION_LAYERUPGRADE_H
-#define __SYNFIG_APP_ACTION_LAYERUPGRADE_H
+#ifndef SYNFIG_APP_ACTION_LAYERUPGRADE_H
+#define SYNFIG_APP_ACTION_LAYERUPGRADE_H
 
 /* === H E A D E R S ======================================================= */
 
@@ -44,20 +44,14 @@ namespace synfigapp {
 
 namespace Action {
 
-// Replaces a deprecated layer with its current equivalent, carrying over
-// parameters, animated (dynamic) links, description, z-depth, group and
-// active state. Driven by a deprecated->current name map, so adding a new
-// upgrade pair needs no code changes beyond the map (see get_target_layer_name).
 class LayerUpgrade :
 	public Super
 {
 private:
 	std::list<synfig::Layer::Handle> layers;
 
-	void prepare_upgrade_layer(const synfig::Layer::Handle& layer, const synfig::String& target_name);
-
-	// Returns the current layer name for a deprecated one, or empty if unknown.
-	static synfig::String get_target_layer_name(const synfig::String& source_layer_name);
+	// Returns the parameter name that flags layer is deprecated, or empty if unknown.
+	static synfig::String get_layer_param(const synfig::Layer::LooseHandle& layer);
 
 public:
 
@@ -65,7 +59,7 @@ public:
 	static bool is_candidate(const ParamList& x);
 
 	virtual bool set_param(const synfig::String& name, const Param&);
-	virtual bool is_ready()const;
+	virtual bool is_ready() const;
 
 	virtual void prepare();
 

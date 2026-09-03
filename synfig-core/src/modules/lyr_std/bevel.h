@@ -61,6 +61,8 @@ private:
 	ValueBase param_use_luma;
 	//!Parameter: (bool) solid
 	ValueBase param_solid;
+	//!Parameter: (bool) broken 0.3 renderering - Synfig 1.2 ~ 1.5.5
+	ValueBase param_broken_rendering_0_3;
 
 	Vector	offset;
 	Vector	offset45;
@@ -78,6 +80,8 @@ public:
 	Rect get_full_bounding_rect(Context context) const override;
 	Vocab get_param_vocab() const override;
 	bool reads_context() const override { return true; }
+
+	bool set_version(const String& ver) override;
 
 protected:
 	rendering::Task::Handle build_composite_fork_task_vfunc(ContextParams, rendering::Task::Handle sub_task) const override;
