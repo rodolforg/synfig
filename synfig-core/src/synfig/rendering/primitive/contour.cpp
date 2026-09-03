@@ -561,22 +561,74 @@ Contour::calc_bounds() const
 {
 	if (chunks.empty()) return Rect::zero();
 	Rect bounds(chunks.front().p1);
-	for(ChunkList::const_iterator i = chunks.begin(); i != chunks.end(); ++i)
-		switch(i->type) {
-		case CUBIC:
-			bounds.expand(i->pp1);
+
+	Vector p0 = chunks.front().p1;
+	for (const Chunk& chunk : chunks) {
+		switch(chunk.type) {
+		case CUBIC: {
+			std::vector<Real> ts = {0., 1.};
+			const Vector a = (-p0 + chunk.pp0*3 - chunk.pp1*3 + chunk.p1)*3;
+			const Vector b = ( p0 - chunk.pp0*2 + chunk.pp1)*6;
+			const Vector c = (-p0 + chunk.pp0)*3;
+
+			if (approximate_not_zero(a[0])) {
+				const Real sqrt_delta_x = sqrt(b[0] * b[0] - 4*a[0]*c[0]);
+				const Real root1_x =  (-b[0] + sqrt_delta_x) / (2. * a[0]);
+				const Real root2_x =  (-b[0] - sqrt_delta_x) / (2. * a[0]);
+
+				ts.push_back(root1_x);
+				ts.push_back(root2_x);
+			}
+			if (approximate_not_zero(a[1])) {
+				const Real sqrt_delta_y = sqrt(b[1] * b[1] - 4*a[1]*c[1]);
+				const Real root1_y =  (-b[1] + sqrt_delta_y) / (2. * a[1]);
+				const Real root2_y =  (-b[1] - sqrt_delta_y) / (2. * a[1]);
+
+				ts.push_back(root1_y);
+				ts.push_back(root2_y);
+			}
+			for (Real t : ts) {
+				if (synfig::approximate_less(t, 0.))
+					continue;
+				if (synfig::approximate_greater(t, 1.))
+					continue;
+				const Point p = p0*(1-t)*(1-t)*(1-t) + chunk.pp0*3*(1-t)*(1-t)*t + chunk.pp1*(1-t)*t*t + chunk.p1*t*t*t;
+				bounds.expand(p);
+			}
 			fallthrough__;
-		case CONIC:
-			bounds.expand(i->pp0);
+		}
+		case CONIC: {
+			std::vector<Real> ts = {0., 1.};
+			const Vector a = (chunk.p1 - chunk.pp0)*3;
+			const Vector b = (chunk.pp0 - p0)*3;
+			if (approximate_not_zero(b[0] - a[0])) {
+				const Real root1_x =  -a[0] / (b[0] - a[0]);
+				ts.push_back(root1_x);
+			}
+			if (approximate_not_zero(b[1] - a[1])) {
+				const Real root1_y =  -a[1] / (b[1] - a[1]);
+				ts.push_back(root1_y);
+			}
+			for (Real t : ts) {
+				if (synfig::approximate_less(t, 0.))
+					continue;
+				if (synfig::approximate_greater(t, 1.))
+					continue;
+				const Point p = p0*(1-t)*(1-t)*(1-t) + chunk.pp0*3*(1-t)*(1-t)*t + chunk.pp1*(1-t)*t*t + chunk.p1*t*t*t;
+				bounds.expand(p);
+			}
 			fallthrough__;
+		}
 		case CLOSE:
 		case MOVE:
 		case LINE:
-			bounds.expand(i->p1);
+			bounds.expand(chunk.p1);
 			fallthrough__;
 		default:
 			break;
 		}
+		p0 = chunk.p1;
+	}
 	return bounds;
 }
 
