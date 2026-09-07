@@ -88,6 +88,8 @@ public:
 		Gtk::TreeModelColumn<float> z_depth;
 		Gtk::TreeModelColumn<int> index;
 
+		Gtk::TreeModelColumn<bool> deprecated;
+
 		Model()
 		{
 			add(icon_name);
@@ -110,6 +112,7 @@ public:
 			add(z_depth);
 			add(index);
 			add(children_lock);
+			add(deprecated);
 		}
 	};
 

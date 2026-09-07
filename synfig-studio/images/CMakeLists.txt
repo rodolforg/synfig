@@ -256,6 +256,7 @@ set(ICONS
 	type_bone_valuenode_icon
 	utils_timetrack_align_icon
 	valuenode_icon
+	warning_br_icon
 )
 
 set(IMAGES

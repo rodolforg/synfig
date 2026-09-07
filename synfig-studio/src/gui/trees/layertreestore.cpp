@@ -61,6 +61,26 @@ using namespace studio;
 
 /* === G L O B A L S ======================================================= */
 
+// TODO: Find a way to unify this function with LayerUpgrade action!
+static synfig::String
+get_layer_param_flagging_broken_rendering(const Layer::LooseHandle& layer)
+{
+	struct BrokenInfo
+	{
+		const char* layer_name;
+		const char* param_name;
+		bool param_value;
+	};
+	static const BrokenInfo layers_with_broken_rendering[] = {
+		{ "bevel", "broken_rendering_0_3", true },
+	};
+	for (const auto& entry : layers_with_broken_rendering)
+		if (layer->get_name() == entry.layer_name)
+			if (layer->get_param(entry.param_name).get(bool()) == entry.param_value)
+				return entry.param_name;
+	return synfig::String{};
+}
+
 /* === P R O C E D U R E S ================================================= */
 
 static void
@@ -274,6 +294,11 @@ LayerTreeStore::get_value_vfunc(const Gtk::TreeModel::iterator& iter, int column
 			else
 			if (column == model.icon_name.index())
 				set_gvalue_tpl<Glib::ustring>(value, layer_icon_name(layer->get_name()), true);
+			else
+			if (column == model.deprecated.index()) {
+				const String param = get_layer_param_flagging_broken_rendering(layer);
+				set_gvalue_tpl<bool>(value, !param.empty());
+			}
 			else
 				Gtk::TreeStore::get_value_vfunc(iter,column,value);
 

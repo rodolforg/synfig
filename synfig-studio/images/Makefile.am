@@ -439,7 +439,8 @@ ICONS = \
 	\
 	utils_chain_link_on_icon.$(EXT) \
 	utils_chain_link_off_icon.$(EXT) \
-	utils_timetrack_align_icon.$(EXT)
+	utils_timetrack_align_icon.$(EXT) \
+	warning_br_icon.$(EXT)
 
 if WIN32_PKG
 WIN32_ICONS = \

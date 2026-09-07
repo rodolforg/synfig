@@ -65,8 +65,155 @@ using namespace studio;
 
 /* === G L O B A L S ======================================================= */
 
+/** (icon_name, overlay_icon_layer) -> pixbuf */
+static std::map<std::pair<std::string, std::string>, Glib::RefPtr<Gdk::Pixbuf>> icons_with_overlay;
+
 /* === P R O C E D U R E S ================================================= */
 
+#include <glibmm/property.h>
+#include <glibmm/propertyproxy.h>
+
+#include <gtkmm/cellrenderer.h>
+
+class CellRenderer_IconOverlay : public Gtk::CellRenderer
+{
+	Glib::Property<std::string> property_regular_icon_name_;
+	Glib::Property<std::string> property_overlay_icon_name_;
+	Glib::Property<bool> property_enable_overlay_;
+
+	bool cache_overlayed_icons = true;
+
+public:
+	CellRenderer_IconOverlay();
+	~CellRenderer_IconOverlay();
+
+	Glib::PropertyProxy<std::string> property_regular_icon_name() { return property_regular_icon_name_.get_proxy(); }
+	Glib::PropertyProxy<std::string> property_overlay_icon_name() { return property_overlay_icon_name_.get_proxy(); }
+	Glib::PropertyProxy<bool> property_enable_overlay() { return property_enable_overlay_.get_proxy(); }
+
+protected:
+
+	void
+	render_vfunc(
+		const ::Cairo::RefPtr< ::Cairo::Context>& cr,
+		Gtk::Widget& widget,
+		const Gdk::Rectangle& background_area,
+		const Gdk::Rectangle& cell_area,
+		Gtk::CellRendererState flags) override;
+
+	Gtk::SizeRequestMode
+	get_request_mode_vfunc() const override;
+	void
+	get_preferred_width_for_height_vfunc(Gtk::Widget& widget, int height, int& minimum_width, int& natural_width) const override;
+	void
+	get_preferred_width_vfunc(Gtk::Widget& widget, int& minimum_width, int& natural_width) const override;
+	void
+	get_preferred_height_for_width_vfunc(Gtk::Widget& widget, int width, int& minimum_height, int& natural_height) const override;
+	void
+	get_preferred_height_vfunc(Gtk::Widget& widget, int& minimum_height, int& natural_height) const override;
+
+}; // END of class CellRenderer_IconToggle
+
+# include <gtkmm/icontheme.h>
+
+CellRenderer_IconOverlay::CellRenderer_IconOverlay()
+	: Glib::ObjectBase(typeid(CellRenderer_IconOverlay)),
+	Gtk::CellRenderer(),
+	property_regular_icon_name_(*this, "regular_icon_name"),
+	property_overlay_icon_name_(*this, "overlay_icon_name"),
+	property_enable_overlay_(*this, "enable_overlay", true)
+{
+	property_xpad() = 2;
+	property_ypad() = 2;
+}
+
+CellRenderer_IconOverlay::~CellRenderer_IconOverlay()
+{
+}
+
+void
+CellRenderer_IconOverlay::render_vfunc(
+	const ::Cairo::RefPtr< ::Cairo::Context>& cr,
+	Gtk::Widget& widget,
+	const Gdk::Rectangle& background_area,
+	const Gdk::Rectangle& cell_area,
+	Gtk::CellRendererState flags)
+{
+	if (!cr || background_area.has_zero_area() || cell_area.has_zero_area())
+		return;
+	const Glib::RefPtr<Gtk::IconTheme> icon_theme = Gtk::IconTheme::get_default();
+	const std::string icon_name = property_regular_icon_name_;
+
+	Glib::RefPtr<Gdk::Pixbuf> pixbuf;
+
+	if (!property_enable_overlay_ || property_overlay_icon_name_.get_value().empty()) {
+		// simple icon
+		pixbuf = icon_theme->load_icon(icon_name, cell_area.get_height() - 2 * property_ypad());
+	} else {
+		const auto cached_it = icons_with_overlay.find({icon_name, property_overlay_icon_name_.get_value()});
+		const bool is_cached = cached_it != icons_with_overlay.end();
+
+		if (!cache_overlayed_icons || !is_cached) {
+			// duplicate regular pixbuf
+			pixbuf = icon_theme->load_icon(icon_name, cell_area.get_height() - 2 * property_ypad());
+			auto new_pixbuf = Gdk::Pixbuf::create(pixbuf->get_colorspace(), true, pixbuf->get_bits_per_sample(), pixbuf->get_width(), pixbuf->get_height());
+			pixbuf->composite(new_pixbuf, 0, 0, pixbuf->get_width(), pixbuf->get_height(), 0., 0., 1., 1., Gdk::INTERP_NEAREST, 255);
+			auto overlay_pixbuf = icon_theme->load_icon(property_overlay_icon_name_.get_value(), pixbuf->get_height());
+			overlay_pixbuf->composite(new_pixbuf, 0, 0, pixbuf->get_width(), pixbuf->get_height(), 0., 0., 1., 1., Gdk::INTERP_NEAREST, 255);
+
+			pixbuf = new_pixbuf;
+
+			if (cache_overlayed_icons)
+				icons_with_overlay[{icon_name, property_overlay_icon_name_.get_value()}] = pixbuf;
+		} else {
+			pixbuf = cached_it->second;
+		}
+	}
+	gdk_cairo_set_source_pixbuf(cr->cobj(), pixbuf->gobj(), cell_area.get_x() + property_xpad(), cell_area.get_y() + property_ypad());
+	cr->paint();
+}
+
+Gtk::SizeRequestMode
+CellRenderer_IconOverlay::get_request_mode_vfunc() const
+{
+	return Gtk::SIZE_REQUEST_WIDTH_FOR_HEIGHT;
+}
+
+void
+CellRenderer_IconOverlay::get_preferred_width_for_height_vfunc(Gtk::Widget& widget, int height, int& minimum_width, int& natural_width) const
+{
+	synfig::error("%s - %i", __PRETTY_FUNCTION__, height);
+	minimum_width = height;
+	natural_width = height;
+}
+
+void
+CellRenderer_IconOverlay::get_preferred_width_vfunc(Gtk::Widget& widget, int& minimum_width, int& natural_width) const
+{
+	synfig::error(__PRETTY_FUNCTION__);
+	// minimum_width = 14;
+	// natural_width = 14;
+	if (property_is_expander()) {
+		// natural_width += 14;
+	}
+	// natural_width += 2*property_xpad();
+}
+
+void
+CellRenderer_IconOverlay::get_preferred_height_for_width_vfunc(Gtk::Widget& widget, int width, int& minimum_height, int& natural_height) const
+{
+	synfig::error("%s - %i", __PRETTY_FUNCTION__, width);
+	minimum_height = width;
+	natural_height = width;
+}
+
+void
+CellRenderer_IconOverlay::get_preferred_height_vfunc(Gtk::Widget& widget, int& minimum_height, int& natural_height) const
+{
+	synfig::error(__PRETTY_FUNCTION__);
+	minimum_height = 14;
+	natural_height = 14;
+}
 /* === M E T H O D S ======================================================= */
 
 /*
@@ -166,10 +313,14 @@ LayerTree::create_layer_tree()
 
 	{	// --- I C O N --------------------------------------------------------
 		// Set up the icon cell-renderer
-		Gtk::CellRendererPixbuf* pixbuf_cell_renderer = manage(new Gtk::CellRendererPixbuf());
+		// Gtk::CellRendererPixbuf* pixbuf_cell_renderer = manage(new Gtk::CellRendererPixbuf());
+		CellRenderer_IconOverlay* pixbuf_cell_renderer = manage(new CellRenderer_IconOverlay());
+		pixbuf_cell_renderer->property_overlay_icon_name() = "warning_br_icon";
 		Gtk::TreeViewColumn* column = manage(new Gtk::TreeViewColumn("", *pixbuf_cell_renderer));
+		// column->pack_start(*pixbuf_cell_renderer, false);
+		column->add_attribute(pixbuf_cell_renderer->property_regular_icon_name(), layer_model.icon_name);
+		column->add_attribute(pixbuf_cell_renderer->property_enable_overlay(), layer_model.deprecated);
 		layer_tree_view().append_column(*column);
-		column->add_attribute(*pixbuf_cell_renderer, "icon_name", layer_model.icon_name);
 		layer_tree_view().set_expander_column(*column);
 	}
 	{	// --- N A M E --------------------------------------------------------

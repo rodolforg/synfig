@@ -73,10 +73,10 @@ Action::LayerUpgrade::get_layer_param(const Layer::LooseHandle& layer)
 		const char* param_name;
 		bool param_value;
 	};
-	static const BrokenInfo table[] = {
-									   { "bevel", "broken_rendering_0_3", true },
-									   };
-	for (const auto& entry : table)
+	static const BrokenInfo layers_with_broken_rendering[] = {
+		{ "bevel", "broken_rendering_0_3", true },
+	};
+	for (const auto& entry : layers_with_broken_rendering)
 		if (layer->get_name() == entry.layer_name)
 			if (layer->get_param(entry.param_name).get(bool()) == entry.param_value)
 				return entry.param_name;
@@ -154,7 +154,7 @@ Action::LayerUpgrade::prepare()
 		action->set_param("canvas", get_canvas());
 		action->set_param("canvas_interface", get_canvas_interface());
 
-		action->set_param("value_desc", synfigapp::ValueDesc(layer, param_name));
+		action->set_param("value_desc", ValueDesc(layer, param_name));
 		action->set_param("new_value", ValueBase(false));
 		add_action(action);
 	}
