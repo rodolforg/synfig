@@ -460,7 +460,7 @@ StateBone_Context::refresh_tool_options()
 	App::dock_tool_options->clear();
 	App::dock_tool_options->set_widget(options_table);
 	App::dock_tool_options->set_local_name(_("Skeleton Tool"));
-	App::dock_tool_options->set_name("bone");
+	App::dock_tool_options->set_icon("tool_skeleton_icon");
 
 	App::dock_tool_options->add_button(
 			"edit-clear",

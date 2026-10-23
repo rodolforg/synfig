@@ -630,7 +630,7 @@ StateBrush_Context::refresh_tool_options()
 	original_brush_config.clear();
 	App::dock_tool_options->clear();
 	App::dock_tool_options->set_local_name(_("Brush Tool"));
-	App::dock_tool_options->set_name("brush");
+	App::dock_tool_options->set_icon("tool_brush_icon");
 
 	Gtk::Notebook *notebook = Gtk::manage(new Gtk::Notebook());
 	notebook->set_hexpand(true);
