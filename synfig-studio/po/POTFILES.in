@@ -94,6 +94,8 @@ src/gui/docks/dock_params.cpp
 src/gui/docks/dock_params.h
 src/gui/docks/dock_soundwave.h
 src/gui/docks/dock_soundwave.cpp
+src/gui/docks/dock_switchdrawings.cpp
+src/gui/docks/dock_switchdrawings.h
 src/gui/docks/dock_timetrack.cpp
 src/gui/docks/dock_timetrack.h
 src/gui/docks/dock_timetrack2.cpp
