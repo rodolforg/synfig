@@ -84,6 +84,7 @@
 #include <gui/dialogs/dialog_setup.h>
 #include <gui/dialogs/vectorizersettings.h>
 
+#include <gui/docks/dock_switchdrawings.h>
 #include <gui/docks/dock_tooloptions.h>
 #include <gui/docks/dockmanager.h>
 #include <gui/docks/dock_canvases.h>
@@ -1084,23 +1085,24 @@ DEFINE_ACTION("workspace-default",     _("Default"))
 DEFINE_ACTION("workspace-animating",   _("Animating"))
 DEFINE_ACTION("save-workspace",        _("Save workspace..."))
 DEFINE_ACTION("dialog-flipbook",       _("Preview Dialog"))
-DEFINE_ACTION("panel-toolbox",         _("Toolbox"))
-DEFINE_ACTION("panel-tool_options",    _("Tool Options"))
-DEFINE_ACTION("panel-history",         _("History"))
 DEFINE_ACTION("panel-canvases",        _("Canvas Browser"))
-DEFINE_ACTION("panel-keyframes",       _("Keyframes"))
-DEFINE_ACTION("panel-layers",          _("Layers"))
-DEFINE_ACTION("panel-params",          _("Parameters"))
-DEFINE_ACTION("panel-meta_data",       _("Canvas MetaData"))
 DEFINE_ACTION("panel-children",        _("Library"))
-DEFINE_ACTION("panel-info",            _("Info"))
-DEFINE_ACTION("panel-navigator",       _("Navigator"))
-DEFINE_ACTION("panel-timetrack-old",   _("Timetrack (old)"))
 DEFINE_ACTION("panel-curves",          _("Graphs"))
 DEFINE_ACTION("panel-groups",          _("Sets"))
+DEFINE_ACTION("panel-history",         _("History"))
+DEFINE_ACTION("panel-info",            _("Info"))
+DEFINE_ACTION("panel-keyframes",       _("Keyframes"))
+DEFINE_ACTION("panel-layers",          _("Layers"))
+DEFINE_ACTION("panel-meta_data",       _("Canvas MetaData"))
+DEFINE_ACTION("panel-navigator",       _("Navigator"))
 DEFINE_ACTION("panel-pal_edit",        _("Palette Editor"))
+DEFINE_ACTION("panel-params",          _("Parameters"))
 DEFINE_ACTION("panel-soundwave",       _("Sound"))
+DEFINE_ACTION("panel-switchdrawings",       _("Switch Drawings"))
 DEFINE_ACTION("panel-timetrack",       _("Timetrack"))
+DEFINE_ACTION("panel-timetrack-old",   _("Timetrack (old)"))
+DEFINE_ACTION("panel-tool_options",    _("Tool Options"))
+DEFINE_ACTION("panel-toolbox",         _("Toolbox"))
 
 // actions in Help menu
 DEFINE_ACTION("help",           Gtk::Stock::HELP)
@@ -1262,6 +1264,7 @@ DEFINE_ACTION("switch-to-rightmost-tab",  _("Switch to Rightmost Tab"))
 "		<menuitem action='panel-groups' />"
 "		<menuitem action='panel-pal_edit' />"
 "		<menuitem action='panel-soundwave' />"
+"		<menuitem action='panel-switchdrawings' />"
 "		<separator />"
 // opened documents will be listed here below the above separator.
 "	</menu>"
@@ -1729,6 +1732,11 @@ void App::init(const synfig::String& rootpath)
 		dock_layer_groups = new studio::Dock_LayerGroups();
 		dock_manager->register_dockable(*dock_layer_groups);
 
+		{
+			studio_init_cb.task(_("Init Switch Drawings..."));
+			auto dock_switchdrawings = new studio::Dock_Switchdrawings();
+			dock_manager->register_dockable(*dock_switchdrawings);
+		}
 
 		studio_init_cb.task(_("Init Color Dialog..."));
 		dialog_color=new studio::Dialog_Color();

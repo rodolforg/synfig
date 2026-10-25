@@ -62,6 +62,7 @@ protected:
 private:
 	Glib::RefPtr<Gtk::ActionGroup> action_group_;
 	sigc::connection connection_selection_changed;
+	sigc::connection connection_canvas_time_changed;
 	sigc::connection connection_layer_switch_children_changed;
 	sigc::connection connection_layer_switch_param_changed;
 	sigc::connection connection_layer_switch_static_param_changed;
@@ -77,6 +78,12 @@ private:
 		Gtk::Image* image;
 	};
 	std::vector<DrawingItem> drawing_items_;
+	DrawingItem empty_drawing_item_;
+	/** Used to prevent issue with Gtk::manage()
+	 *  in create_drawing_item() used to create empty_drawing_line_.
+	 *  Here the FlowBoxChild is not created with Gtk::manage().
+	 */
+	Gtk::FlowBoxChild flowbox_child_empty_item_;
 	std::vector<synfig::rendering::TaskEvent::Handle> task_events_;
 
 	/** protects drawing_items_ and task_events_ */
@@ -94,13 +101,16 @@ private:
 
 	void on_layer_selection_changed();
 	void on_layer_switch_param_changed(const std::string& param_name);
+	void on_canvas_time_changed();
 	void on_drawing_item_clicked(int i);
 	void on_drawing_rendered(bool success, synfig::rendering::SurfaceResource::Handle s, int idx, bool flip_v);
-	void on_duplicate_pressed();
 	void on_next_pressed();
 	void on_previous_pressed();
+	void on_duplicate_pressed();
+	void on_refresh_pressed();
 
 	DrawingItem create_drawing_item(int idx);
+	DrawingItem create_drawing_item(const std::string& title, int idx);
 
 }; // END of Dock_Switchdrawings
 

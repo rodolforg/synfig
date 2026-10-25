@@ -35,6 +35,7 @@
 
 #include "docks/dock_switchdrawings.h"
 
+#include <synfig/general.h>
 #include <synfig/layers/layer_group.h>
 #include <synfig/rendering/renderer.h>
 #include <synfig/rendering/common/task/tasktransformation.h>
@@ -55,41 +56,55 @@ using namespace studio;
 
 /* === G L O B A L S ======================================================= */
 
+static const VectorInt default_drawing_image_size{100, 100};
+
 /* === P R O C E D U R E S ================================================= */
 
 static int
 get_layer_switch_current_depth(etl::handle<Layer_Switch> selected_layer_switch)
 {
+	if (!selected_layer_switch)
+		return -1;
+
 	const std::string layer_name = selected_layer_switch->get_param("layer_name").get(std::string());
-	int layer_depth = selected_layer_switch->get_param("layer_depth").get(int());
 	if (!layer_name.empty()) {
-		layer_depth = 0;
+		if (!selected_layer_switch->get_sub_canvas())
+			return -1;
+		int layer_depth = 0;
 		for (IndependentContext i = selected_layer_switch->get_sub_canvas()->get_independent_context(); *i; ++i, ++layer_depth) {
 			if ((*i)->get_description() == layer_name)
-				break;
+				return layer_depth;
 		}
 	}
+	const int layer_depth = selected_layer_switch->get_param("layer_depth").get(int());
 	return layer_depth;
+}
+
+static void
+create_transparent_image(Gtk::Image* image, const VectorInt& size)
+{
+	if (!image || size[0] <= 0 || size[1] <= 0)
+		return;
+	const int square_size = 10;
+	const Color color1(Color::alpha());
+	const Color color2(Color::gray());
+	auto pixbuf = Gdk::Pixbuf::create(Gdk::Colorspace::COLORSPACE_RGB, true, 8, size[0], size[1]);
+	pixbuf->fill(0);
+	image->set(pixbuf);
 }
 
 /* === M E T H O D S ======================================================= */
 
 Dock_Switchdrawings::Dock_Switchdrawings()
- : Dock_CanvasSpecific("switchdrawings", _("Switch Drawings"), "switchdrawings_icon")
- , action_group_(Gtk::ActionGroup::create("action_group_dock_switchdrawings"))
+	: Dock_CanvasSpecific("switchdrawings", _("Switch Drawings"), "switchdrawings_icon")
+	, action_group_(Gtk::ActionGroup::create("action_group_dock_switchdrawings"))
+	, empty_drawing_item_(create_drawing_item(_("None"), -1))
 {
 	// Make toolbar small for space efficiency
 	get_style_context()->add_class("synfigstudio-efficient-workspace");
 
-	action_group_->add(
-		Gtk::Action::create_with_icon_name(
-			"action-SwitchdrawingsDuplicate",
-			"duplicate_icon",
-			_("Duplicate"),
-			_("Duplicate current drawing")
-			),
-		sigc::mem_fun(*this, &Dock_Switchdrawings::on_duplicate_pressed)
-		);
+	create_transparent_image(empty_drawing_item_.image, default_drawing_image_size);
+	flowbox_child_empty_item_.add(*empty_drawing_item_.container);
 
 	action_group_->add(
 		Gtk::Action::create_with_icon_name(
@@ -97,9 +112,9 @@ Dock_Switchdrawings::Dock_Switchdrawings()
 			"go-next",
 			_("Next drawing"),
 			_("Switch to next drawing")
-			),
+		),
 		sigc::mem_fun(*this, &Dock_Switchdrawings::on_next_pressed)
-		);
+	);
 
 	action_group_->add(
 		Gtk::Action::create_with_icon_name(
@@ -107,21 +122,43 @@ Dock_Switchdrawings::Dock_Switchdrawings()
 			"go-previous",
 			_("Previous drawing"),
 			_("Switch to previous drawing")
-			),
+		),
 		sigc::mem_fun(*this, &Dock_Switchdrawings::on_previous_pressed)
-		);
+	);
+
+	action_group_->add(
+		Gtk::Action::create_with_icon_name(
+			"action-SwitchdrawingsDuplicate",
+			"duplicate_icon",
+			_("Duplicate"),
+			_("Duplicate current drawing")
+		),
+		sigc::mem_fun(*this, &Dock_Switchdrawings::on_duplicate_pressed)
+	);
+
+	action_group_->add(
+		Gtk::Action::create_with_icon_name(
+			"action-SwitchdrawingsRefresh",
+			"view-refresh",
+			_("Refresh"),
+			_("Update the possible drawings for selected layer")
+		),
+		sigc::mem_fun(*this, &Dock_Switchdrawings::on_refresh_pressed)
+	);
 
 	action_group_->add(Gtk::Action::create("toolbar-switchdrawings", _("Switch Drawings")) );
 	App::ui_manager()->insert_action_group(action_group_);
 
 	Glib::ustring ui_info =
 		"<ui>"
-		"	<toolbar action='toolbar-switchdrawings'>"
-		"	<toolitem action='action-SwitchdrawingsPrevious' />"
-		"	<toolitem action='action-SwitchdrawingsNext' />"
-		"	<separator />"
-		"	<toolitem action='action-SwitchdrawingsDuplicate' />"
-		"	</toolbar>"
+		" <toolbar action='toolbar-switchdrawings'>"
+		"  <toolitem action='action-SwitchdrawingsPrevious' />"
+		"  <toolitem action='action-SwitchdrawingsNext' />"
+		"  <separator />"
+		"  <toolitem action='action-SwitchdrawingsDuplicate' />"
+		"  <separator />"
+		"  <toolitem action='action-SwitchdrawingsRefresh' />"
+		" </toolbar>"
 		"</ui>";
 
 	App::ui_manager()->add_ui_from_string(ui_info);
@@ -145,6 +182,9 @@ Dock_Switchdrawings::Dock_Switchdrawings()
 	label_multiple_selection_ = Gtk::manage(new Gtk::Label(_("Multiple layers are selected")));
 	vbox->pack_start(*label_no_selection_);
 	vbox->pack_start(*label_multiple_selection_);
+
+	label_no_selection_->show();
+	refresh_toolbar();
 }
 
 Dock_Switchdrawings::~Dock_Switchdrawings()
@@ -171,6 +211,28 @@ Dock_Switchdrawings::changed_canvas_view_vfunc(CanvasView::LooseHandle canvas_vi
 	} else {
 		action_group_->set_sensitive(false);
 	}
+}
+
+void
+Dock_Switchdrawings::on_next_pressed()
+{
+	if (!selected_layer_switch)
+		return;
+	const int idx = get_layer_switch_current_depth(selected_layer_switch);
+	if (!selected_layer_switch->get_sub_canvas() || idx >= selected_layer_switch->get_sub_canvas()->size() - 1)
+		return;
+	switch_to_drawing(idx + 1);
+}
+
+void
+Dock_Switchdrawings::on_previous_pressed()
+{
+	if (!selected_layer_switch)
+		return;
+	const int idx = get_layer_switch_current_depth(selected_layer_switch);
+	if (idx <= 0)
+		return;
+	switch_to_drawing(idx - 1);
 }
 
 void
@@ -203,25 +265,11 @@ Dock_Switchdrawings::on_duplicate_pressed()
 }
 
 void
-Dock_Switchdrawings::on_next_pressed()
+Dock_Switchdrawings::on_refresh_pressed()
 {
-	if (!selected_layer_switch)
-		return;
-	const int idx = get_layer_switch_current_depth(selected_layer_switch);
-	if (!selected_layer_switch->get_sub_canvas() || idx >= selected_layer_switch->get_sub_canvas()->size() - 1)
-		return;
-	switch_to_drawing(idx + 1);
-}
-
-void
-Dock_Switchdrawings::on_previous_pressed()
-{
-	if (!selected_layer_switch)
-		return;
-	const int idx = get_layer_switch_current_depth(selected_layer_switch);
-	if (idx <= 0)
-		return;
-	switch_to_drawing(idx - 1);
+	// cancel_pending_rendering();
+	update_number_of_drawings();
+	// refresh_drawings();
 }
 
 void
@@ -304,6 +352,7 @@ Dock_Switchdrawings::on_layer_selection_changed()
 	} else if (layer_count == 0 || !selected_layer_switch) {
 		label_no_selection_->show();
 	} else {
+		fbox_->add(flowbox_child_empty_item_);
 		const int num_drawings = selected_layer_switch->get_sub_canvas()->size();
 		for (int i = 0; i < num_drawings; ++i) {
 			auto item = create_drawing_item(i);
@@ -323,6 +372,9 @@ Dock_Switchdrawings::on_layer_selection_changed()
 		refresh_drawings();
 		fbox_->show_all();
 
+		// missing way to detect when a child layer changes to refresh that specific drawing image
+		// missing way to detect when children count changes to add/remove/refresh drawing images
+		connection_canvas_time_changed = get_canvas_interface()->signal_time_changed().connect(sigc::mem_fun(*this, &Dock_Switchdrawings::on_canvas_time_changed));
 		connection_layer_switch_children_changed = selected_layer_switch->signal_possible_layers_changed().connect(sigc::mem_fun(*this, &Dock_Switchdrawings::update_number_of_drawings));
 		connection_layer_switch_param_changed = selected_layer_switch->signal_param_changed().connect(sigc::mem_fun(*this, &Dock_Switchdrawings::on_layer_switch_param_changed));
 		connection_layer_switch_static_param_changed = selected_layer_switch->signal_static_param_changed().connect(sigc::mem_fun(*this, &Dock_Switchdrawings::on_layer_switch_param_changed));
@@ -343,6 +395,7 @@ Dock_Switchdrawings::refresh_toolbar()
 	}
 	action_group_->get_action("action-SwitchdrawingsPrevious")->set_sensitive(idx > 0);
 	action_group_->get_action("action-SwitchdrawingsNext")->set_sensitive(idx < n_items - 1);
+	action_group_->get_action("action-SwitchdrawingsDuplicate")->set_sensitive(idx >= 0 && idx < n_items);
 }
 
 void
@@ -367,18 +420,15 @@ Dock_Switchdrawings::render_drawing(int idx)
 	// bool must_unlock = mutex_drawings.try_lock();
 	// class LockIfNot{}
 
-	const RectInt raster_size{0,0,100,100};
-
 	const Layer::Handle layer_to_render = *selected_layer_switch->get_sub_canvas()->byindex(idx);
 	if (!layer_to_render) {
-		fprintf(stderr, _("Internal error: no sublayer at index #%i"), idx);
+		synfig::error(_("Internal error: no sublayer at index #%i"), idx);
 		return;
 	}
 	const Layer_PasteCanvas::Handle pastecanvas_to_render = Layer_PasteCanvas::Handle::cast_dynamic(layer_to_render);
 	Rect layer_rect = !pastecanvas_to_render ? layer_to_render->get_bounding_rect() : pastecanvas_to_render->get_bounding_rect_context_dependent(ContextParams());
 	if (layer_rect.is_nan_or_inf())
 		layer_rect = get_canvas_view()->get_canvas()->rend_desc().get_rect();
-	// FIXME keep the aspect ratio of rendered drawing!
 
 	ContextParams context_params;
 	context_params.z_range = true;
@@ -398,8 +448,17 @@ Dock_Switchdrawings::render_drawing(int idx)
 		flip_v = p0[1] > p1[1];
 	}
 
+	VectorInt raster_size{default_drawing_image_size};
+	// Fix aspect ratio if needed
+	// FIXME if default_drawing_image_size isn't square
+	if (layer_rect.get_width() > layer_rect.get_height()) {
+		raster_size[1] = layer_rect.get_height() / layer_rect.get_width() * raster_size[0];
+	} else if (layer_rect.get_width() < layer_rect.get_height()) {
+		raster_size[0] = layer_rect.get_width() / layer_rect.get_height() * raster_size[1];
+	}
+
 	task->target_surface = new rendering::SurfaceResource();
-	task->target_surface->create(raster_size.get_width(), raster_size.get_height());
+	task->target_surface->create(raster_size[0], raster_size[1]);
 	task->target_rect = RectInt(VectorInt(), task->target_surface->get_size());
 	task->source_rect = Rect(layer_rect.get_min(), layer_rect.get_max());
 
@@ -418,11 +477,10 @@ Dock_Switchdrawings::render_drawing(int idx)
 		);
 
 	task_events_.push_back(task_event);
-	// ++enqueued_tasks;
 
-	rendering::Renderer::Handle renderer = rendering::Renderer::get_renderer("software");
+	rendering::Renderer::Handle renderer = rendering::Renderer::get_renderer(App::workarea_renderer);
 	if (!renderer) {
-		fprintf(stderr, "Não tem renderer");
+		synfig::error(_("Internal error: there is no renderer called %s"), App::workarea_renderer.c_str());
 		return;
 	}
 
@@ -456,14 +514,16 @@ void Dock_Switchdrawings::update_number_of_drawings()
 {
 	fprintf(stderr, "%s\n", __PRETTY_FUNCTION__);
 	{
+		// {
 		std::lock_guard<std::mutex> lock(mutex_drawings);
 
 		for (auto& t : task_events_) {
 			t->finish(false);
 		}
 		task_events_.clear();
+		//}
 
-		const int num_drawings = selected_layer_switch->get_sub_canvas()->size();
+		const int num_drawings = selected_layer_switch ? selected_layer_switch->get_sub_canvas()->size() : 0;
 		const int num_existent_drawings = drawing_items_.size();
 
 		if (num_drawings < num_existent_drawings) {
@@ -472,10 +532,10 @@ void Dock_Switchdrawings::update_number_of_drawings()
 				drawing_items_.pop_back();
 			}
 		} else {
-			for (int i = num_existent_drawings; i <= num_drawings; ++i) {
+			for (int i = num_existent_drawings; i < num_drawings; ++i) {
 				auto item = create_drawing_item(i);
 				{
-					std::lock_guard<std::mutex> lock(mutex_drawings);
+					// std::lock_guard<std::mutex> lock(mutex_drawings);
 					if (i >= drawing_items_.size())
 						drawing_items_.push_back(item);
 					else
@@ -484,9 +544,11 @@ void Dock_Switchdrawings::update_number_of_drawings()
 				}
 			}
 		}
-		const int layer_depth = get_layer_switch_current_depth(selected_layer_switch);
-		if (layer_depth >= 0 && layer_depth < drawing_items_.size()) {
-			drawing_items_[layer_depth].button->set_active(true);
+		if (selected_layer_switch) {
+			const int layer_depth = get_layer_switch_current_depth(selected_layer_switch);
+			if (layer_depth >= 0 && layer_depth < drawing_items_.size()) {
+				drawing_items_[layer_depth].button->set_active(true);
+			}
 		}
 		fbox_->show_all();
 	}
@@ -497,6 +559,7 @@ void Dock_Switchdrawings::update_number_of_drawings()
 void
 Dock_Switchdrawings::clear_layer_switch_widgets_and_connections()
 {
+	connection_canvas_time_changed.disconnect();
 	connection_layer_switch_children_changed.disconnect();
 	connection_layer_switch_param_changed.disconnect();
 	connection_layer_switch_static_param_changed.disconnect();
@@ -533,19 +596,41 @@ Dock_Switchdrawings::on_layer_switch_param_changed(const std::string& param_name
 		drawing_items_[layer_depth].button->set_active(true);
 	} else {
 		// invalid layer_depth!
-		for (auto& item : drawing_items_)
-			item.button->set_active(false);
+		empty_drawing_item_.button->set_active(true);
 	}
 	refresh_toolbar();
 }
 
 void
+Dock_Switchdrawings::on_canvas_time_changed()
+{
+	if (selected_layer_switch) {
+		const int new_depth = get_layer_switch_current_depth(selected_layer_switch);
+		std::lock_guard<std::mutex> lock(mutex_drawings);
+		if (new_depth >= 0 && new_depth < drawing_items_.size()) {
+			auto& button = drawing_items_[new_depth].button;
+			if (!button->get_active())
+				button->set_active(true);
+		} else {
+			auto& button = empty_drawing_item_.button;
+			if (!button->get_active())
+				button->set_active(true);
+		}
+	}
+}
+
+void
 Dock_Switchdrawings::on_drawing_item_clicked(int i)
 {
-	if (i < drawing_items_.size()) {
+	if (i >= 0 && i < drawing_items_.size()) {
 		const bool active = drawing_items_[i].button->get_active();
 		if (active) {
 			switch_to_drawing(i);
+		}
+	} else {
+		const bool active = empty_drawing_item_.button->get_active();
+		if (active) {
+			switch_to_drawing(-1);
 		}
 	}
 }
@@ -559,20 +644,38 @@ Dock_Switchdrawings::on_drawing_rendered(bool success, synfig::rendering::Surfac
 		return;
 	}
 
-	auto pixbuf = Gdk::Pixbuf::create(Gdk::Colorspace::COLORSPACE_RGB, true, 8, 100, 100);
-	if (!pixbuf) {
+	auto pixbuf = Gdk::Pixbuf::create(Gdk::Colorspace::COLORSPACE_RGB, true, 8, default_drawing_image_size[0], default_drawing_image_size[1]);
+	if (!pixbuf)
 		return;
-	}
-	auto dst = pixbuf->get_pixels();
+	pixbuf->fill(0);
 
 	rendering::SurfaceResource::LockReadBase surface_lock(s);
 	if (surface_lock.get_resource() && surface_lock.get_resource()->is_blank()) {
-		pixbuf->fill(0);
 	} else {
 		if (surface_lock.convert(rendering::Surface::Token::Handle(), false, true)) {
-			const rendering::Surface &s = *surface_lock.get_surface();
+			const rendering::Surface& s = *surface_lock.get_surface();
 			const Color* src = s.get_pixels_pointer();
-			color_to_pixelformat(dst, src, PF_RGB | PF_A, nullptr, s.get_width(), s.get_height(), pixbuf->get_rowstride(), 0);
+			const int pad_y = int((pixbuf->get_height() - s.get_height()) / 2);
+			const int pad_x = int((pixbuf->get_width() - s.get_width()) / 2);
+			if (pad_x < 0 || pad_y < 0) {
+				synfig::error(
+					_("Internal error: invalid size of rendered Drawing: %i x %i; should be smaller than or equals to %i x %i"),
+					s.get_width(), s.get_height(),
+					pixbuf->get_width(), pixbuf->get_height()
+				);
+				return;
+			}
+			auto dst = pixbuf->get_pixels() + pixbuf->get_rowstride() * pad_y;
+			if (pad_x == 0) {
+				color_to_pixelformat(dst, src, PF_RGB | PF_A, nullptr, s.get_width(), s.get_height(), pixbuf->get_rowstride(), 0);
+			} else {
+				dst += pad_x * pixbuf->get_bits_per_sample() * pixbuf->get_n_channels() / 8;
+				for (int i = 2*pad_y; i < pixbuf->get_height(); ++i) {
+					color_to_pixelformat(dst, src, PF_RGB | PF_A, nullptr, s.get_width(), 1, pixbuf->get_rowstride());
+					dst += pixbuf->get_rowstride();
+					src += s.get_width();
+				}
+			}
 			if (flip_v)
 				pixbuf = pixbuf->flip(false);
 		}
@@ -581,7 +684,7 @@ Dock_Switchdrawings::on_drawing_rendered(bool success, synfig::rendering::Surfac
 	{
 		std::lock_guard<std::mutex> lock(mutex_drawings);
 		if (idx < 0 || idx > drawing_items_.size()) {
-			fprintf(stderr, "Trying to draw rendered image of invalid index: %i\n", idx);
+			synfig::warning(_("Trying to draw rendered image of invalid index: %i\n"), idx);
 			return;
 		}
 		drawing_items_[idx].image->set(pixbuf);
@@ -591,13 +694,19 @@ Dock_Switchdrawings::on_drawing_rendered(bool success, synfig::rendering::Surfac
 Dock_Switchdrawings::DrawingItem
 Dock_Switchdrawings::create_drawing_item(int idx)
 {
+	return create_drawing_item(strprintf(_("#%d"), idx), idx);
+}
+
+Dock_Switchdrawings::DrawingItem
+Dock_Switchdrawings::create_drawing_item(const std::string& title, int idx)
+{
 	Gtk::Box* box = Gtk::manage(new Gtk::Box(Gtk::ORIENTATION_VERTICAL));
 
 	auto image = Gtk::manage(new Gtk::Image());
 	image->property_icon_name() = "image-missing";
 	box->pack_start(*image);
 
-	Gtk::Label* label = Gtk::manage(new Gtk::Label(strprintf(_("#%d"), idx)));
+	Gtk::Label* label = Gtk::manage(new Gtk::Label(title));
 	label->set_vexpand(false);
 	box->pack_start(*label, Gtk::PACK_SHRINK);
 
@@ -609,7 +718,5 @@ Dock_Switchdrawings::create_drawing_item(int idx)
 	bt->set_vexpand(true);
 	bt->add(*box);
 
-	DrawingItem item {bt, bt, image};
-
-	return item;
+	return DrawingItem{bt, bt, image};
 }
